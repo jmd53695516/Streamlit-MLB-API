@@ -61,4 +61,27 @@ Explicit exclusions — do not re-add without discussion:
 
 ## Traceability
 
-_To be filled by the roadmapper after ROADMAP.md is created._
+Updated 2026-04-14 after roadmap creation. Every v1 requirement is mapped to exactly one phase.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| UX-01 | Phase 4: Controller & Selectors UI | Pending |
+| UX-02 | Phase 4: Controller & Selectors UI | Pending |
+| UX-03 | Phase 4: Controller & Selectors UI | Pending |
+| UX-04 | Phase 4: Controller & Selectors UI | Pending |
+| UX-05 | Phase 6: Summary, Rankings & Polish | Pending |
+| DATA-01 | Phase 3: HR Pipeline | Pending |
+| DATA-02 | Phase 3: HR Pipeline | Pending |
+| DATA-03 | Phase 3: HR Pipeline | Pending |
+| DATA-04 | Phase 1: Foundation & API Layer | Pending |
+| DATA-05 | Phase 3: HR Pipeline | Pending |
+| GEO-01 | Phase 2: Models & Geometry | Pending |
+| GEO-02 | Phase 2: Models & Geometry | Pending |
+| GEO-03 | Phase 2: Models & Geometry | Pending |
+| VIZ-01 | Phase 5: Spray Chart Visualization | Pending |
+| VIZ-02 | Phase 5: Spray Chart Visualization | Pending |
+| VIZ-03 | Phase 5: Spray Chart Visualization | Pending |
+| VIZ-04 | Phase 6: Summary, Rankings & Polish | Pending |
+| VIZ-05 | Phase 6: Summary, Rankings & Polish | Pending |
+
+**Coverage: 18/18 (100%)** — No orphans, no duplicates.
