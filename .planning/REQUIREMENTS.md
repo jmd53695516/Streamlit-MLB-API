@@ -1,0 +1,64 @@
+# Requirements — Streamlit MLB HR Park Factor Explorer
+
+Version: v1
+Status: Defined 2026-04-14
+
+## v1 Requirements
+
+### Core UX (UX)
+
+- [ ] **UX-01**: User can select a team from a dropdown of all 30 MLB teams
+- [ ] **UX-02**: User can select a player from the selected team's roster; the list is filtered to hitters (non-pitchers) and sorted by current-season HR count descending
+- [ ] **UX-03**: User can select one of 30 MLB stadiums; selector defaults to the selected player's home stadium
+- [ ] **UX-04**: Changing Team resets Player; changing Player resets the stadium to the player's home park (managed via `st.session_state`)
+- [ ] **UX-05**: While data is being fetched, a loading spinner is shown; when a fetch fails, a friendly error message explains what happened and suggests retrying
+
+### Data Pipeline (DATA)
+
+- [ ] **DATA-01**: App retrieves the current season's game log for the selected player from `statsapi.mlb.com` and identifies games in which the player hit at least one HR
+- [ ] **DATA-02**: For each HR game, the app fetches the live game feed, extracts all HR plays attributed to the selected player, and collects `hitData` (launchSpeed, launchAngle, totalDistance, coordinates.coordX/coordY) per HR
+- [ ] **DATA-03**: App fetches `fieldInfo` for all 30 MLB stadiums and caches the result; a disk-backed cache persists between restarts
+- [ ] **DATA-04**: API fetches are cached via `st.cache_data` with per-endpoint TTLs (venues long, gameLog hourly, completed game feeds daily+)
+- [ ] **DATA-05**: Per-HR extraction degrades gracefully: HRs missing `hitData` (e.g., inside-the-park, pre-Statcast) are retained and flagged rather than dropping or crashing
+
+### Geometry & Verdict (GEO)
+
+- [ ] **GEO-01**: App computes spray angle from `hitData.coordinates.coordX/coordY` using a documented coordinate transform (origin, Y-axis inversion, scale) calibrated against a known HR's `totalDistance`
+- [ ] **GEO-02**: For each of the 30 parks, app interpolates the fence distance at the HR's spray angle using piecewise-linear interpolation across the `fieldInfo` distance points in angle-space
+- [ ] **GEO-03**: App computes a per-HR-per-park verdict: does `hitData.totalDistance` exceed the interpolated fence distance at that park? (Wall height is explicitly not modeled in v1.)
+
+### Visualization & Output (VIZ)
+
+- [ ] **VIZ-01**: App renders a Plotly spray chart showing the selected stadium's outline (from `fieldInfo`: home plate → 6 fence points → home) with foul lines, correctly scaled in feet
+- [ ] **VIZ-02**: All of the player's HRs are plotted on the chart, each color-coded by whether it clears the *selected* stadium's fence (green=clears, red=doesn't)
+- [ ] **VIZ-03**: Each HR dot has a Plotly hover tooltip showing date, opponent, distance, exit velocity, launch angle, and parks cleared out of 30
+- [ ] **VIZ-04**: App shows a summary metrics card with: total HRs, average parks cleared (of 30), count of no-doubters (30/30), count of cheap HRs (≤5/30)
+- [ ] **VIZ-05**: App displays a "best and worst parks for this player" ranking derived from the verdict matrix — top 3 parks where the most of this player's HRs clear, and bottom 3 where the fewest clear
+
+## v2 Requirements (Deferred)
+
+Things users would likely expect but are not in v1:
+
+- **V2-01**: Empty-state UI for "0 HRs this season" (offseason, early season, or non-HR-hitters) — functional behavior required even if it's just a graceful message
+- **V2-02**: Per-HR details table (date, distance, EV, LA, parks cleared /30) as a sortable dataframe below the chart
+- **V2-03**: Wall-height caveat surfaced in the UI so users don't misinterpret the verdicts (e.g., Fenway Green Monster)
+- **V2-04**: Cheap-HR threshold slider so users can tune what "cheap" means
+- **V2-05**: URL query-param state so a specific player/stadium view is bookmarkable/shareable
+
+## Out of Scope
+
+Explicit exclusions — do not re-add without discussion:
+
+- **Wall height modeling** — Not exposed by the MLB StatsAPI. Accepted caveat for v1; v2 should at minimum surface this limitation in the UI (see V2-03).
+- **Career or multi-season history** — Scope creep; current season keeps the fan-out tractable. Baseball Savant covers this use case already.
+- **Official park factors (run/HR multipliers)** — Not available via MLB StatsAPI; this is FanGraphs/Statcast-calculator territory.
+- **Third-party API wrappers** (`MLB-StatsAPI` PyPI, pybaseball, etc.) — User prefers direct HTTP to inspect raw JSON; keeps dependencies minimal.
+- **Live / in-progress game updates** — Hobby app, not a live scoreboard. We operate on completed games.
+- **User accounts, saved players, social sharing** — Single-user local app; no backend / persistence.
+- **Leaderboards (most cheap HRs league-wide, etc.)** — Baseball Savant already owns this pattern; would balloon API fan-out.
+- **MLB video link-outs per HR** — Needs `playId` reliability check that is not confirmed; deferred indefinitely.
+- **League-average annotations / all-30-parks small-multiples overlay** — Visually dense; better explored as a v2+ prototype.
+
+## Traceability
+
+_To be filled by the roadmapper after ROADMAP.md is created._
