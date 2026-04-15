@@ -1,0 +1,28 @@
+{
+  "gamePk": 900001,
+  "gameData": {
+    "datetime": {"officialDate": "2026-04-13"},
+    "teams": {
+      "home": {"id": 147, "abbreviation": "NYY"},
+      "away": {"id": 117, "abbreviation": "HOU"}
+    }
+  },
+  "liveData": {
+    "plays": {
+      "allPlays": [
+        {
+          "result": {
+            "eventType": "home_run",
+            "description": "Aaron Judge homers (1) on a fly ball to left field."
+          },
+          "matchup": {"batter": {"id": 592450}},
+          "about": {"inning": 1, "halfInning": "bottom", "atBatIndex": 0},
+          "playEvents": [
+            {"type": "pitch"},
+            {"type": "pitch"}
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "gamePk": 900002,
+  "gameData": {
+    "datetime": {"officialDate": "2026-04-20"},
+    "teams": {
+      "home": {"id": 147, "abbreviation": "NYY"},
+      "away": {"id": 117, "abbreviation": "HOU"}
+    }
+  },
+  "liveData": {
+    "plays": {
+      "allPlays": [
+        {
+          "result": {
+            "eventType": "home_run",
+            "description": "Aaron Judge hits an inside-the-park home run to center field."
+          },
+          "matchup": {"batter": {"id": 592450}},
+          "about": {"inning": 3, "halfInning": "top", "atBatIndex": 4},
+          "playEvents": [
+            {"type": "pitch"},
+            {
+              "type": "hit_into_play",
+              "hitData": {
+                "totalDistance": 325.0,
+                "launchSpeed": 101.2,
+                "launchAngle": 18.0,
+                "coordinates": {"coordX": 128.3, "coordY": 95.1}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

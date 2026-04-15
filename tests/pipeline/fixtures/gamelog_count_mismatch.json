@@ -1,0 +1,4 @@
+[
+  {"date": "2026-05-01", "game": {"gamePk": 900006}, "team": {"id": 147, "name": "New York Yankees"}, "opponent": {"id": 117, "name": "Houston Astros"}, "stat": {"homeRuns": 2}},
+  {"date": "2026-05-02", "game": {"gamePk": 900007}, "team": {"id": 147, "name": "New York Yankees"}, "opponent": {"id": 117, "name": "Houston Astros"}, "stat": {"homeRuns": 0}}
+]

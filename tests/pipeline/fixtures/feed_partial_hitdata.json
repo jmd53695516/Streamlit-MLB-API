@@ -1,0 +1,36 @@
+{
+  "gamePk": 900003,
+  "gameData": {
+    "datetime": {"officialDate": "2026-04-22"},
+    "teams": {
+      "home": {"id": 147, "abbreviation": "NYY"},
+      "away": {"id": 117, "abbreviation": "HOU"}
+    }
+  },
+  "liveData": {
+    "plays": {
+      "allPlays": [
+        {
+          "result": {
+            "eventType": "home_run",
+            "description": "Aaron Judge homers (2) on a fly ball to right field."
+          },
+          "matchup": {"batter": {"id": 592450}},
+          "about": {"inning": 5, "halfInning": "bottom", "atBatIndex": 8},
+          "playEvents": [
+            {"type": "pitch"},
+            {
+              "type": "hit_into_play",
+              "hitData": {
+                "totalDistance": 410.0,
+                "launchSpeed": 108.4,
+                "launchAngle": 27.0,
+                "coordinates": {"coordX": null, "coordY": null}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
