@@ -12,6 +12,7 @@ Convenience re-exports (for Phase 4 single-import-origin consumers):
   - CURRENT_SEASON                    (Phase 3 season default, D-16)
 """
 from mlb_park.config import CURRENT_SEASON
+from mlb_park.geometry.park import load_parks
 from mlb_park.geometry.verdict import HitData, compute_verdict_matrix
 from mlb_park.pipeline.events import HREvent, PipelineError, PipelineResult
 from mlb_park.pipeline.extract import extract_hrs, hr_event_to_hit_data
@@ -25,9 +26,10 @@ __all__ = [
     "PipelineError",
     "PipelineResult",
     "load_all_parks",
-    # Convenience re-exports for Phase 4 controller
+    # Convenience re-exports for Phase 4 controller (D-02 single import origin)
     "HitData",
     "compute_verdict_matrix",
+    "load_parks",
     "MLBAPIError",
     "CURRENT_SEASON",
 ]
