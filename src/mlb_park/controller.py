@@ -13,6 +13,7 @@ the pipeline package boundary.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Union
 
@@ -29,6 +30,8 @@ from mlb_park.pipeline import (  # noqa: F401 — re-exports primed for Plan 04-
 
 # Type-only import; runtime calls go through mlb_park.pipeline (D-02 spirit).
 from mlb_park.geometry.verdict import VerdictMatrix
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -131,5 +134,62 @@ def _verdict_matrix_summary(matrix: VerdictMatrix | None) -> dict | None:
     }
 
 
+# ---------------------------------------------------------------------------
+# Plan 04-02 helpers — _sorted_teams / _sorted_hitters (UX-01, UX-02, D-12/13).
+# ---------------------------------------------------------------------------
+
+
+def _sorted_teams(teams: list[dict]) -> list[dict]:
+    """Return teams sorted by `name` ascending (UX-01).
+
+    Pure: no mutation of the input list. Missing `name` sorts as empty string
+    (shouldn't happen with the real StatsAPI response but keeps the function
+    total for defensive callers).
+    """
+    return sorted(teams, key=lambda t: t.get("name", ""))
+
+
+def _hr_of(entry: dict) -> int:
+    """Extract `person.stats[0].splits[0].stat.homeRuns`, defaulting to 0 (D-13)."""
+    stats = entry.get("person", {}).get("stats") or []
+    if not stats:
+        return 0
+    splits = stats[0].get("splits") or []
+    if not splits:
+        return 0
+    raw = splits[0].get("stat", {}).get("homeRuns", 0)
+    try:
+        return int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _name_of(entry: dict) -> str:
+    """Extract `person.fullName`, defaulting to empty string."""
+    return entry.get("person", {}).get("fullName", "") or ""
+
+
+def _sorted_hitters(roster: list[dict]) -> list[dict]:
+    """Filter non-pitchers, then sort by (-homeRuns, fullName) (D-12, D-13).
+
+    Missing `position` key ⇒ WARNING logged per-entry, entry treated as
+    non-pitcher (defensive — the real StatsAPI always returns position, but
+    a malformed fixture / roster row shouldn't crash the UI).
+    Missing `homeRuns` ⇒ sorts as 0.
+    """
+    out: list[dict] = []
+    for entry in roster:
+        position = entry.get("position") or {}
+        if not position:
+            log.warning(
+                "Roster entry missing position; treating as non-pitcher: %s",
+                _name_of(entry) or "<unknown>",
+            )
+        if position.get("type") == "Pitcher":
+            continue
+        out.append(entry)
+    return sorted(out, key=lambda e: (-_hr_of(e), _name_of(e)))
+
+
 # `field` is re-exported for downstream helpers in Plan 04-02 (pre-empts an import churn commit).
-__all__ = ["ViewModel", "field"]
+__all__ = ["ViewModel", "field", "_sorted_teams", "_sorted_hitters"]
