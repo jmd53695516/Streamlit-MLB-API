@@ -59,9 +59,9 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   3. A disk-backed venue cache (`data/venues_cache.json`, 30-day TTL) is populated on first run and reused on subsequent cold starts.
   4. Pipeline is testable with a stub `api` module — fixture-driven tests pass without network access.
 **Plans**: 3 plans
-- [ ] 03-01-PLAN.md — Pipeline package scaffold, HREvent/PipelineResult dataclasses, CURRENT_SEASON, synthetic degradation fixtures, StubAPI factory (Wave 1)
-- [ ] 03-02-PLAN.md — extract_hrs + feed-walk helpers: DATA-01 filter, DATA-02 feed walk, DATA-05 degradation flags, D-14 error handling (Wave 2)
-- [ ] 03-03-PLAN.md — HREvent -> HitData adapter (D-06), package re-exports, end-to-end Judge fixtures -> VerdictMatrix integration test (Wave 3)
+- [x] 03-01-PLAN.md — Pipeline package scaffold, HREvent/PipelineResult dataclasses, CURRENT_SEASON, synthetic degradation fixtures, StubAPI factory (Wave 1)
+- [x] 03-02-PLAN.md — extract_hrs + feed-walk helpers: DATA-01 filter, DATA-02 feed walk, DATA-05 degradation flags, D-14 error handling (Wave 2)
+- [x] 03-03-PLAN.md — HREvent -> HitData adapter (D-06), package re-exports, end-to-end Judge fixtures -> VerdictMatrix integration test (Wave 3)
 
 ### Phase 4: Controller & Selectors UI
 **Goal**: Thinnest Streamlit app that proves the three cascading selectors + ViewModel pipeline work end-to-end, rendering a raw JSON/dataframe dump (deferring the chart).
