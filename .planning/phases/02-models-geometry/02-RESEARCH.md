@@ -723,22 +723,25 @@ def test_verdict_matrix_shape_and_sign():
 
 This phase doesn't touch user-controlled input (no web surface, no file upload); the threat surface is programmer error in constructing inputs. The mitigations are assertions and clear error messages, not defense-in-depth controls.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Angle for `left` / `right` gap keys — `±30°` vs `±33.75°` (midpoint)**
    - What we know: empirical fence ordering in 12 parks confirms the keys sit between LF-line (-45°) and LCF (-22.5°). Either `±30°` or `±33.75°` is defensible; the choice changes interpolated fence at ±30° by at most a few feet in the narrow band around the knot.
    - What's unclear: no official MLB doc we've found specifies the angular placement.
    - Recommendation: use **±30°** for cleanliness; document the convention with a code comment; offer `±33.75°` as a V2 refinement if verdict accuracy ever needs it.
+   - **RESOLVED:** `±30°` adopted. Plans 02-02 encode `GAP_ANGLE_DEG = 30.0` and lock it via `test_gap_angle_is_30_degrees`.
 
 2. **scipy vs scipy-free solver (D-07 decision point)**
    - What we know: both produce identical results to 4 decimals; scipy adds ~90 MB and a req pin.
    - What's unclear: whether any Phase 3+ work will want scipy for other reasons (not foreseen in ROADMAP but possible).
    - Recommendation: **scipy-free** for this phase; revisit if a later phase finds a compelling scipy use case.
+   - **RESOLVED:** scipy-free. Plan 02-01 ships a 2-D grid+refine solver and guards against accidental scipy introduction via `test_scipy_not_in_requirements`.
 
 3. **pytest addition to requirements (Phase 1 deferred it)**
    - What we know: Phase 1 `requirements.txt` has no test framework; CLAUDE.md says ruff is "optional" but doesn't speak to pytest.
    - What's unclear: one-file `requirements.txt` vs. split `requirements-dev.txt`.
    - Recommendation: Add `pytest>=8.0,<9.0` to the main `requirements.txt` (Phase 1's flat-file convention) OR create `requirements-dev.txt` (standard Python-community convention for test-only deps). Planner's call; either is defensible.
+   - **RESOLVED:** `pytest>=8.0,<9.0` added to the main `requirements.txt` in Plan 02-01 (matches Phase 1's flat-file convention; single-file hobby app per CLAUDE.md).
 
 ## Sources
 
