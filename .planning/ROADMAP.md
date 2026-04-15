@@ -74,9 +74,9 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   4. Changing the team clears the player selection; changing the player resets the stadium to the player's home park (managed via `st.session_state`).
   5. A raw `ViewModel` dump (JSON or dataframe) renders below the selectors, proving the controller pipeline is wired end-to-end.
 **Plans**: 3 plans
-- [ ] 04-01-PLAN.md — Services wrapper (get_team_hitting_stats) + ViewModel dataclass + controller test scaffolding (Wave 1)
-- [ ] 04-02-PLAN.md — build_view composition + sort/filter helpers + purity guard (Wave 2)
-- [ ] 04-03-PLAN.md — Streamlit app shell + on_change callback tests + manual smoke (Wave 3)
+- [x] 04-01-PLAN.md — Services wrapper (get_team_hitting_stats) + ViewModel dataclass + controller test scaffolding (Wave 1)
+- [x] 04-02-PLAN.md — build_view composition + sort/filter helpers + purity guard (Wave 2)
+- [x] 04-03-PLAN.md — Streamlit app shell + on_change callback tests + manual smoke (Wave 3)
 **UI hint**: yes
 
 ### Phase 5: Spray Chart Visualization
