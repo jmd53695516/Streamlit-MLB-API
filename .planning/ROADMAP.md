@@ -88,7 +88,10 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   2. Every player HR appears as a dot at its `(spray_angle, totalDistance)` location on the chart.
   3. Each HR dot is green if it clears the selected stadium's fence, red if not.
   4. Hovering an HR dot shows a tooltip with date, opponent, distance (ft), exit velocity, launch angle, and "parks cleared out of 30".
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 05-01-PLAN.md — Chart module skeleton + Wave 0 test scaffolding + ViewModel fixture factory (Wave 1)
+- [ ] 05-02-PLAN.md — Stadium geometry traces: fair polygon, infield, baselines, mound, bases (Wave 2)
+- [ ] 05-03-PLAN.md — HR scatter + hover/customdata + app.py wiring + manual smoke (Wave 3)
 **UI hint**: yes
 
 ### Phase 6: Summary, Rankings & Polish
