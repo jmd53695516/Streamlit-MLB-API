@@ -58,7 +58,10 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   2. HRs with missing or partial `hitData` (inside-the-park, pre-Statcast, review-reversed) are retained with explicit flags (`has_distance`, `has_coords`, `is_itp`), not dropped or crashed on.
   3. A disk-backed venue cache (`data/venues_cache.json`, 30-day TTL) is populated on first run and reused on subsequent cold starts.
   4. Pipeline is testable with a stub `api` module — fixture-driven tests pass without network access.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 03-01-PLAN.md — Pipeline package scaffold, HREvent/PipelineResult dataclasses, CURRENT_SEASON, synthetic degradation fixtures, StubAPI factory (Wave 1)
+- [ ] 03-02-PLAN.md — extract_hrs + feed-walk helpers: DATA-01 filter, DATA-02 feed walk, DATA-05 degradation flags, D-14 error handling (Wave 2)
+- [ ] 03-03-PLAN.md — HREvent -> HitData adapter (D-06), package re-exports, end-to-end Judge fixtures -> VerdictMatrix integration test (Wave 3)
 
 ### Phase 4: Controller & Selectors UI
 **Goal**: Thinnest Streamlit app that proves the three cascading selectors + ViewModel pipeline work end-to-end, rendering a raw JSON/dataframe dump (deferring the chart).
@@ -102,7 +105,7 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 |-------|----------------|--------|-----------|
 | 1. Foundation & API Layer | 0/3 | Not started | - |
 | 2. Models & Geometry | 0/3 | Not started | - |
-| 3. HR Pipeline | 0/? | Not started | - |
+| 3. HR Pipeline | 0/3 | Not started | - |
 | 4. Controller & Selectors UI | 0/? | Not started | - |
 | 5. Spray Chart Visualization | 0/? | Not started | - |
 | 6. Summary, Rankings & Polish | 0/? | Not started | - |
