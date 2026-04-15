@@ -525,20 +525,13 @@ def _walk_feed_for_hrs(feed: dict, player_id: int, gamelog_row: dict) -> list[HR
 | A3 | The D-10 fallback ("last playEvent with hitData if terminal lacks it") covers a real case even though not seen in fixtures | D-10 section, Empirical verification | MEDIUM — if the fallback is never-real, dead code; if real but subtly different (e.g., reviewed-play hitData lives on a non-terminal event), the synthetic fixture catches it |
 | A4 | `p["matchup"]["batter"]["parentTeamId"]` is not reliably present on all plays, so we use gameLog row `team.id` | Field-by-field extraction map | LOW — gameLog row `team.id` is observed on all 5 HR rows |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `CURRENT_SEASON` come from `config.py` or from the most-recent gameLog date at runtime?**
-   - What we know: CONTEXT.md D-16 says `config.CURRENT_SEASON`. Phase 1 `config.py` does NOT currently export this constant — it has `YANKEES_TEAM_ID`, `JUDGE_PERSON_ID` only.
-   - What's unclear: Is the planner expected to add `CURRENT_SEASON = 2026` to `config.py` as part of this phase, or pull it from `datetime.date.today().year`?
-   - Recommendation: Add `CURRENT_SEASON = 2026` as a module-level constant in `config.py`. Deterministic, matches fixtures, trivially overridable for tests via the existing `season` kwarg.
+1. **Should `CURRENT_SEASON` come from `config.py` or from the most-recent gameLog date at runtime?** — **RESOLVED:** Add `CURRENT_SEASON = 2026` as a module-level constant in `config.py` (implemented in Plan 03-01 Task 1). Deterministic, matches fixtures, overridable via the `season` kwarg for tests.
 
-2. **Does D-06's adapter belong on `HREvent` or as a module-level helper?**
-   - What we know: CONTEXT.md explicitly leaves this to planner discretion.
-   - Recommendation: Module-level `hr_event_to_hit_data(ev) -> HitData | None` in `pipeline/extract.py`. Keeps `HREvent` a pure data dataclass with no cross-package method coupling; mirrors the Phase 2 pattern where `HitData` has no methods either.
+2. **Does D-06'''s adapter belong on `HREvent` or as a module-level helper?** — **RESOLVED:** Module-level `hr_event_to_hit_data(ev) -> HitData | None` in `pipeline/extract.py` (implemented in Plan 03-03 Task 1). Keeps `HREvent` a pure data dataclass with no cross-package method coupling; mirrors the Phase 2 pattern where `HitData` has no methods.
 
-3. **Should the chronological sort tiebreak beyond `(game_date, play_idx)`?**
-   - What we know: Two HRs on the same date in the same game will differ in `play_idx`. Two HRs on the same date but different games (doubleheader) — `play_idx` ties are possible but `game_pk` differs.
-   - Recommendation: `key=lambda e: (e.game_date, e.game_pk, e.play_idx)` to be deterministic across doubleheaders. Low practical risk.
+3. **Should the chronological sort tiebreak beyond `(game_date, play_idx)`?** — **RESOLVED:** Use `(game_date, play_idx)` per locked CONTEXT.md D-13. The locked decision supersedes the research-suggested `(game_date, game_pk, play_idx)` doubleheader tiebreak. Low practical risk given <60 HRs/season in v1.
 
 ## Environment Availability
 
