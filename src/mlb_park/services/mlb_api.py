@@ -145,3 +145,53 @@ def get_game_feed(game_pk: int) -> dict:
 def get_venue(venue_id: int) -> dict:
     """Venue metadata with fieldInfo + location. TTL 24h."""
     return _raw_venue(venue_id)
+
+
+# ---------------------------------------------------------------------------
+# Disk-backed venue cache — survives process restarts.
+# ROADMAP criterion #3: cold 2nd run loads all 30 venues from disk, no network.
+# ---------------------------------------------------------------------------
+
+def _atomic_write_json(path: Path, data: Any) -> None:
+    """Write JSON atomically. Safe on Windows (os.replace is atomic, PEP 428).
+
+    Writes to a tempfile in the SAME directory (same filesystem required for
+    atomic rename), then os.replace. Partial-write corruption is impossible:
+    either the whole file is the old version, or the whole file is the new one.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def load_all_parks() -> dict[int, dict]:
+    """Return {venue_id: venue_dict} for all 30 team home venues.
+
+    First run: fetches teams, dedups home venue IDs, calls get_venue for each,
+    writes atomically to data/venues_cache.json.
+
+    Subsequent runs (file age < 30 days): reads from disk, zero network calls.
+    This is what makes ROADMAP criterion #3 pass.
+
+    Stale (file age >= 30 days): rebuilds from the API.
+    """
+    if VENUES_FILE.exists():
+        age_days = (time.time() - VENUES_FILE.stat().st_mtime) / 86400.0
+        if age_days < VENUES_STALE_DAYS:
+            raw = json.loads(VENUES_FILE.read_text(encoding="utf-8"))
+            # JSON keys are always strings; convert back to int.
+            return {int(k): v for k, v in raw.items()}
+    # Rebuild from API.
+    teams = get_teams()
+    venue_ids = sorted({t["venue"]["id"] for t in teams})
+    result = {vid: get_venue(vid) for vid in venue_ids}
+    # Persist with string keys (JSON requires string keys).
+    _atomic_write_json(VENUES_FILE, {str(k): v for k, v in result.items()})
+    return result
