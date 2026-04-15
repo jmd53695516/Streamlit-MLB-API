@@ -73,7 +73,10 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   3. After selecting a player, the stadium dropdown defaults to the player's home park; user can override to any of the 30 parks.
   4. Changing the team clears the player selection; changing the player resets the stadium to the player's home park (managed via `st.session_state`).
   5. A raw `ViewModel` dump (JSON or dataframe) renders below the selectors, proving the controller pipeline is wired end-to-end.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 04-01-PLAN.md — Services wrapper (get_team_hitting_stats) + ViewModel dataclass + controller test scaffolding (Wave 1)
+- [ ] 04-02-PLAN.md — build_view composition + sort/filter helpers + purity guard (Wave 2)
+- [ ] 04-03-PLAN.md — Streamlit app shell + on_change callback tests + manual smoke (Wave 3)
 **UI hint**: yes
 
 ### Phase 5: Spray Chart Visualization
@@ -106,7 +109,7 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 | 1. Foundation & API Layer | 0/3 | Not started | - |
 | 2. Models & Geometry | 0/3 | Not started | - |
 | 3. HR Pipeline | 0/3 | Not started | - |
-| 4. Controller & Selectors UI | 0/? | Not started | - |
+| 4. Controller & Selectors UI | 0/3 | Not started | - |
 | 5. Spray Chart Visualization | 0/? | Not started | - |
 | 6. Summary, Rankings & Polish | 0/? | Not started | - |
 
