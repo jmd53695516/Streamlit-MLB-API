@@ -29,3 +29,6 @@ VENUES_STALE_DAYS = 30
 # Known IDs (verified live 2026-04-14 via Yankees roster lookup)
 YANKEES_TEAM_ID = 147
 JUDGE_PERSON_ID = 592450
+
+# Current season — Phase 3 entry point default (D-16).
+CURRENT_SEASON = 2026
