@@ -32,6 +32,10 @@ JUDGE_PERSON_ID = 592450
 NYY_TEAM_ID = 147
 YANKEE_STADIUM = 3313
 FENWAY_PARK = 3
+# Citi Field — the one park in the 30-venue fixture set where at least one of
+# Judge's 6 real 2026 HRs falls short (5 no-doubters, 1 cheap-at-19). Used by
+# test_stadium_flip to guarantee the per-HR bool tuple differs across venues.
+CITI_FIELD = 19
 
 
 # ---------------------------------------------------------------------------
@@ -299,19 +303,22 @@ def test_stadium_flip(
         season=2026,
         api=stub,
     )
-    vm_fenway = build_view(
+    vm_citi = build_view(
         team_id=NYY_TEAM_ID,
         player_id=JUDGE_PERSON_ID,
-        venue_id=FENWAY_PARK,
+        venue_id=CITI_FIELD,
         season=2026,
         api=stub,
     )
-    assert vm_yankee.clears_selected_park != vm_fenway.clears_selected_park, (
+    # Judge hit 5 no-doubters + 1 "cheap at Citi only" in the 2026 fixture set,
+    # so flipping Yankee Stadium ↔ Citi Field changes exactly one column of the
+    # cleared matrix — the per-HR bool tuples must differ.
+    assert vm_yankee.clears_selected_park != vm_citi.clears_selected_park, (
         "Selected-park flip must yield different per-HR bool tuples (different fences)."
     )
     # Underlying matrix is the same (same HRs + same parks); only the venue
     # selection differs. Compare via the JSON-safe to_dict summary.
-    assert vm_yankee.to_dict()["verdict_matrix"] == vm_fenway.to_dict()["verdict_matrix"]
+    assert vm_yankee.to_dict()["verdict_matrix"] == vm_citi.to_dict()["verdict_matrix"]
 
 
 # ---------------------------------------------------------------------------
