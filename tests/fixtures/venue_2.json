@@ -1,0 +1,33 @@
+{
+  "id": 2,
+  "name": "Oriole Park at Camden Yards",
+  "link": "/api/v1/venues/2",
+  "location": {
+    "address1": "333 West Camden Street",
+    "city": "Baltimore",
+    "state": "Maryland",
+    "stateAbbrev": "MD",
+    "postalCode": "21201",
+    "defaultCoordinates": {
+      "latitude": 39.283787,
+      "longitude": -76.621689
+    },
+    "azimuthAngle": 31.0,
+    "elevation": 33,
+    "country": "USA",
+    "phone": "(410) 685-9800"
+  },
+  "fieldInfo": {
+    "capacity": 44970,
+    "turfType": "Grass",
+    "roofType": "Open",
+    "leftLine": 333,
+    "left": 363,
+    "leftCenter": 376,
+    "center": 410,
+    "rightCenter": 373,
+    "rightLine": 318
+  },
+  "active": true,
+  "season": "2026"
+}

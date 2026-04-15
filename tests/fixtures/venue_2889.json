@@ -1,0 +1,32 @@
+{
+  "id": 2889,
+  "name": "Busch Stadium",
+  "link": "/api/v1/venues/2889",
+  "location": {
+    "address1": "700 Clark Street",
+    "city": "St. Louis",
+    "state": "Missouri",
+    "stateAbbrev": "MO",
+    "postalCode": "63102",
+    "defaultCoordinates": {
+      "latitude": 38.62256667,
+      "longitude": -90.19286667
+    },
+    "azimuthAngle": 62.0,
+    "elevation": 460,
+    "country": "USA",
+    "phone": "(314) 345-9600"
+  },
+  "fieldInfo": {
+    "capacity": 44494,
+    "turfType": "Grass",
+    "roofType": "Open",
+    "leftLine": 336,
+    "leftCenter": 375,
+    "center": 400,
+    "rightCenter": 375,
+    "rightLine": 335
+  },
+  "active": true,
+  "season": "2026"
+}

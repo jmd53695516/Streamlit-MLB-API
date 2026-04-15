@@ -1,0 +1,33 @@
+{
+  "id": 31,
+  "name": "PNC Park",
+  "link": "/api/v1/venues/31",
+  "location": {
+    "address1": "115 Federal Street",
+    "city": "Pittsburgh",
+    "state": "Pennsylvania",
+    "stateAbbrev": "PA",
+    "postalCode": "15212",
+    "defaultCoordinates": {
+      "latitude": 40.446904,
+      "longitude": -80.005753
+    },
+    "azimuthAngle": 116.0,
+    "elevation": 780,
+    "country": "USA",
+    "phone": "(412) 323-5000"
+  },
+  "fieldInfo": {
+    "capacity": 38753,
+    "turfType": "Grass",
+    "roofType": "Open",
+    "leftLine": 325,
+    "left": 389,
+    "leftCenter": 410,
+    "center": 399,
+    "rightCenter": 375,
+    "rightLine": 320
+  },
+  "active": true,
+  "season": "2026"
+}
