@@ -1,5 +1,192 @@
-"""Streamlit entry point. Filled in Phase 4 (Controller & Selectors UI)."""
+"""Streamlit entry point for the MLB HR Park Factor Explorer.
+
+Phase 4 — raw ViewModel dump. Wires Team -> Player -> Stadium selectors to
+controller.build_view and renders the structured result as st.json +
+st.dataframe. Chart (Phase 5) and polish (Phase 6) land in later phases.
+
+Architecture (D-23): this module is the ONLY place that touches
+st.session_state. controller.py + services/ stay UI-free.
+
+No-fetch-before-selection (D-18): cold start fires only get_teams().
+get_team_hitting_stats and load_all_parks fire only after their parent
+selectbox is populated.
+"""
+from __future__ import annotations
+
+import pandas as pd
 import streamlit as st
 
+from mlb_park import controller
+from mlb_park.pipeline import CURRENT_SEASON
+from mlb_park.services.mlb_api import (
+    get_teams,
+    get_team_hitting_stats,
+    load_all_parks,
+)
+
+# --- Session state keys (D-16) ---
+# "team_id", "player_id", "venue_id" — bound via selectbox `key=`.
+
+
+# --- Callbacks (D-17, D-20) ---
+def _on_team_change() -> None:
+    """UX-04: team change nulls player_id and venue_id."""
+    st.session_state["player_id"] = None
+    st.session_state["venue_id"] = None
+
+
+def _on_player_change() -> None:
+    """UX-03: set venue_id to the selected team's home park.
+
+    Defensive: if team_id is somehow None when this fires, no-op (don't
+    crash and don't fetch). Real cascading flow always sets team_id first.
+    """
+    team_id = st.session_state.get("team_id")
+    if team_id is None:
+        return
+    teams = get_teams()
+    team = next((t for t in teams if t["id"] == team_id), None)
+    if team is None:
+        return
+    st.session_state["venue_id"] = team["venue"]["id"]
+
+
+# --- Page chrome (UI-SPEC §Copywriting Contract) ---
 st.title("MLB HR Park Factor Explorer")
-st.info("Phase 1 scaffold — UI arrives in Phase 4.")
+st.caption("Phase 4 — raw ViewModel dump. Chart arrives in Phase 5.")
+
+
+# --- Team selectbox (always populated — single eager fetch, D-18) ---
+teams = controller._sorted_teams(get_teams())
+team_options = [t["id"] for t in teams]
+team_labels = {t["id"]: f'{t["name"]} ({t["abbreviation"]})' for t in teams}
+
+st.selectbox(
+    "Team",
+    options=team_options,
+    key="team_id",
+    index=None,
+    placeholder="Select a team…",
+    help="Choose an MLB team to load its hitters.",
+    format_func=lambda tid: team_labels.get(tid, str(tid)),
+    on_change=_on_team_change,
+)
+
+
+# --- Player selectbox (only fetches when team is selected, D-18) ---
+team_id = st.session_state.get("team_id")
+if team_id is not None:
+    roster = controller._sorted_hitters(
+        get_team_hitting_stats(team_id, CURRENT_SEASON)
+    )
+    player_options = [e["person"]["id"] for e in roster]
+    player_labels = {
+        e["person"]["id"]: (
+            f'{e["person"]["fullName"]} — '
+            f'{controller._hr_of(e)} HR'
+        )
+        for e in roster
+    }
+else:
+    player_options = []
+    player_labels = {}
+
+st.selectbox(
+    "Player",
+    options=player_options,
+    key="player_id",
+    index=None,
+    placeholder="Select a player…",
+    help="Non-pitchers on this team, sorted by current-season HR count.",
+    format_func=lambda pid: player_labels.get(pid, str(pid)),
+    on_change=_on_player_change,
+    disabled=(team_id is None),
+)
+
+
+# --- Stadium selectbox (fetch parks only once a player is chosen, D-18) ---
+player_id = st.session_state.get("player_id")
+if player_id is not None:
+    parks_map = load_all_parks()  # dict[int, dict]
+    venue_entries = sorted(
+        parks_map.items(), key=lambda kv: kv[1].get("name", "")
+    )
+    venue_options = [vid for vid, _ in venue_entries]
+    venue_labels = {vid: v.get("name", str(vid)) for vid, v in venue_entries}
+else:
+    venue_options = []
+    venue_labels = {}
+
+st.selectbox(
+    "Stadium",
+    options=venue_options,
+    key="venue_id",
+    index=None,
+    placeholder="Select a stadium…",
+    help="Defaults to the player's home park. Change to see how their HRs would play elsewhere.",
+    format_func=lambda vid: venue_labels.get(vid, str(vid)),
+    disabled=(player_id is None),
+    # NO on_change — manual override sticks (D-17 final bullet).
+)
+
+st.divider()
+
+
+# --- Render region (UI-SPEC §Render tree) ---
+venue_id = st.session_state.get("venue_id")
+if team_id is None or player_id is None or venue_id is None:
+    st.info("Select a team, player, and stadium to begin.")
+else:
+    view = controller.build_view(team_id, player_id, venue_id)
+
+    # D-27: error carrier banner with singular/plural noun.
+    if view.errors:
+        n = len(view.errors)
+        noun = "game feed" if n == 1 else "game feeds"
+        st.warning(
+            f"{n} {noun} failed to fetch; see raw ViewModel below for details."
+        )
+
+    # Empty-state info banners (D-25, D-26).
+    if not view.events:
+        st.info(f"{view.player_name} has no home runs in {view.season}.")
+    elif not view.plottable_events:
+        st.info(
+            "No HRs have hitData for the verdict matrix — "
+            "pipeline returned events but none are plottable."
+        )
+
+    # Raw JSON dump (always, D-24).
+    st.subheader("ViewModel (raw)")
+    st.json(view.to_dict())
+
+    # Plottable dataframe (D-24, only when plottable_events non-empty).
+    if view.plottable_events:
+        st.subheader("Plottable HRs")
+        rows = []
+        for ev, clears in zip(view.plottable_events, view.clears_selected_park):
+            rows.append(
+                {
+                    "game_date": (
+                        ev.game_date.isoformat()
+                        if hasattr(ev.game_date, "isoformat")
+                        else str(ev.game_date)
+                    ),
+                    "opponent_abbr": ev.opponent_abbr,
+                    "distance_ft": (
+                        int(ev.distance_ft) if ev.distance_ft is not None else None
+                    ),
+                    "launch_speed": (
+                        round(ev.launch_speed, 1)
+                        if ev.launch_speed is not None
+                        else None
+                    ),
+                    "launch_angle": (
+                        round(ev.launch_angle, 1)
+                        if ev.launch_angle is not None
+                        else None
+                    ),
+                    "clears_selected": bool(clears),
+                }
+            )
+        st.dataframe(pd.DataFrame(rows), use_container_width=True)
