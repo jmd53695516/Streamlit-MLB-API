@@ -195,3 +195,30 @@ def _opponent_abbr(feed: dict, batter_team_id: int) -> str:
         or opp.get("name")
         or "???"
     )
+
+
+# ---------------------------------------------------------------------
+# D-06: HREvent -> HitData adapter. Phase 2's compute_verdict_matrix
+# consumes HitData; the pipeline emits HREvents. HRs missing distance or
+# coords return None (caller splits events into "verdict-eligible" vs
+# "emit-only" buckets — Phase 4's responsibility).
+# ---------------------------------------------------------------------
+
+from mlb_park.geometry.verdict import HitData
+
+
+def hr_event_to_hit_data(ev: HREvent) -> HitData | None:
+    """Adapter: HREvent -> HitData for the geometry layer (D-06).
+
+    Returns None when the event lacks `distance_ft` or coords — these HRs
+    are still emitted by extract_hrs (DATA-05) but cannot participate in
+    the verdict matrix.
+    """
+    if not (ev.has_distance and ev.has_coords):
+        return None
+    return HitData(
+        distance_ft=ev.distance_ft,
+        coord_x=ev.coord_x,
+        coord_y=ev.coord_y,
+        identifier=(ev.game_pk, ev.play_idx),
+    )
