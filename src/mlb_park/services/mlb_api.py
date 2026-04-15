@@ -99,6 +99,24 @@ def _raw_game_log(person_id: int, season: int) -> list[dict]:
     return stats[0].get("splits", [])
 
 
+def _raw_team_hitting_stats(team_id: int, season: int) -> list[dict]:
+    """Hydrated active roster with single-season hitting stats (D-11 amended).
+
+    URL: /teams/{team_id}/roster?rosterType=active
+         &hydrate=person(stats(type=statsSingleSeason,season={season},group=hitting))
+
+    Returns the `roster` list (possibly empty — D-15).
+    """
+    assert isinstance(team_id, int) and isinstance(season, int), \
+        "team_id and season must be int (SSRF guard, T-4-01)"
+    hydrate = f"person(stats(type=statsSingleSeason,season={season},group=hitting))"
+    resp = _get(
+        f"{BASE_URL_V1}/teams/{team_id}/roster",
+        params={"rosterType": "active", "hydrate": hydrate},
+    )
+    return resp.get("roster", [])
+
+
 def _raw_game_feed(game_pk: int) -> dict:
     assert isinstance(game_pk, int), "game_pk must be int (SSRF guard)"
     # Note: v1.1 (not v1) — RESEARCH.md §Endpoint Contracts #4
@@ -133,6 +151,17 @@ def get_roster(team_id: int) -> list[dict]:
 def get_game_log(person_id: int, season: int) -> list[dict]:
     """Hitter game log, regular season only. TTL 1h."""
     return _raw_game_log(person_id, season)
+
+
+@st.cache_data(ttl=TTL_GAMELOG, show_spinner=False)
+def get_team_hitting_stats(team_id: int, season: int) -> list[dict]:
+    """Active roster hydrated with per-player single-season hitting stats. TTL 1h (D-14).
+
+    D-11 amended endpoint — the `person.stats[0].splits[0].stat.homeRuns`
+    field on each roster entry is the season HR total used by the Phase 4
+    player selector's HR-descending sort.
+    """
+    return _raw_team_hitting_stats(team_id, season)
 
 
 @st.cache_data(ttl=TTL_FEED, show_spinner=False)
