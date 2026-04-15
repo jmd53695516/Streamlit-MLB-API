@@ -30,7 +30,10 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   3. A cold second run loads all 30 venues from `data/venues_cache.json` without hitting the network.
   4. `tests/fixtures/` contains recorded JSON for at least one team, roster, gameLog, game feed, and venue — usable by later phases without network access.
   5. `requirements.txt` pins streamlit>=1.55,<2.0, requests 2.32.x, plotly 6.7, pandas 2.2.x, and installs cleanly in a fresh venv.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 01-01-PLAN.md — Scaffold package, pin deps, config constants (Wave 1)
+- [ ] 01-02-PLAN.md — Five cached HTTP wrappers + disk-backed venue cache (Wave 2)
+- [ ] 01-03-PLAN.md — Smoke page, fixture recorder, human-verified end-to-end (Wave 3)
 
 ### Phase 2: Models & Geometry
 **Goal**: Pure-function, I/O-free geometry layer with an empirically-calibrated coordinate transform, fence interpolation, and per-park verdict — 100% unit-testable without any network.
@@ -94,7 +97,7 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & API Layer | 0/? | Not started | - |
+| 1. Foundation & API Layer | 0/3 | Not started | - |
 | 2. Models & Geometry | 0/? | Not started | - |
 | 3. HR Pipeline | 0/? | Not started | - |
 | 4. Controller & Selectors UI | 0/? | Not started | - |
