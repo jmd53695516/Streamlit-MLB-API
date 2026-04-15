@@ -45,9 +45,9 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   3. `clears_fence(hr_distance, spray_deg, park)` returns a bool matching hand-computed verdicts for fixture HRs at 3+ parks (one home, one cheap, one pitcher-friendly).
   4. All geometry functions run with zero imports from `requests` or `streamlit` (verified by import check).
 **Plans**: 3 plans
-- [ ] 02-01-PLAN.md — pytest harness + scipy-free calibration fit + committed CALIB_* constants (Wave 1)
-- [ ] 02-02-PLAN.md — transform (gameday→angle/distance) + Park dataclass + load_parks + 5pt/7pt fence interp (Wave 2)
-- [ ] 02-03-PLAN.md — HitData + VerdictMatrix + compute_verdict_matrix + 6×30 integration golden test (Wave 3)
+- [x] 02-01-PLAN.md — pytest harness + scipy-free calibration fit + committed CALIB_* constants (Wave 1)
+- [x] 02-02-PLAN.md — transform (gameday→angle/distance) + Park dataclass + load_parks + 5pt/7pt fence interp (Wave 2)
+- [x] 02-03-PLAN.md — HitData + VerdictMatrix + compute_verdict_matrix + 6×30 integration golden test (Wave 3)
 
 ### Phase 3: HR Pipeline
 **Goal**: Given a `player_id`, produce a list of `HREvent` objects with per-HR degradation flags, validated end-to-end against fixtures before any UI exists.
