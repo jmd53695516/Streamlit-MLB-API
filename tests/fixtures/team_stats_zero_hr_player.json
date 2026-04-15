@@ -1,0 +1,48 @@
+{
+  "copyright": "Synthetic single-hitter-with-0-HR fixture — Plan 04-01.",
+  "roster": [
+    {
+      "person": {
+        "id": 900001,
+        "fullName": "Test Hitter",
+        "link": "/api/v1/people/900001",
+        "firstName": "Test",
+        "lastName": "Hitter",
+        "primaryPosition": {"code": "9", "name": "Outfielder", "type": "Outfielder", "abbreviation": "RF"},
+        "stats": [
+          {
+            "type": {"displayName": "statsSingleSeason"},
+            "group": {"displayName": "hitting"},
+            "exemptions": [],
+            "splits": [
+              {
+                "season": "2026",
+                "stat": {
+                  "gamesPlayed": 10,
+                  "homeRuns": 0,
+                  "atBats": 30,
+                  "hits": 5,
+                  "avg": ".167",
+                  "obp": ".200",
+                  "slg": ".167",
+                  "ops": ".367",
+                  "atBatsPerHomeRun": "-.--"
+                },
+                "team": {"id": 999002, "name": "Test Team", "link": "/api/v1/teams/999002"},
+                "player": {"id": 900001, "fullName": "Test Hitter", "link": "/api/v1/people/900001"},
+                "sport": {"id": 1, "abbreviation": "MLB"},
+                "gameType": "R"
+              }
+            ]
+          }
+        ]
+      },
+      "jerseyNumber": "00",
+      "position": {"code": "9", "name": "Outfielder", "type": "Outfielder", "abbreviation": "RF"},
+      "status": {"code": "A", "description": "Active"},
+      "parentTeamId": 999002
+    }
+  ],
+  "teamId": 999002,
+  "rosterType": "active"
+}
