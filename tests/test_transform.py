@@ -59,13 +59,27 @@ def test_all_judge_hrs_distance_within_1ft(judge_hrs):
 
 
 def test_judge_hrs_angle_band(judge_hrs):
-    """All Judge HRs land in [-47°, +14°] raw; exactly one (823563 HR2) clamps to -45°."""
+    """All Judge HRs land inside [-45°, +14°] raw with the fitted calibration.
+
+    RESEARCH.md §Key empirical findings #2 predicted one clamp event (gamePk 823563 HR2
+    at -45.95°) using the *community* origin (Ox=125, Oy=199). The Plan 01 fitted origin
+    (Ox=125.608, Oy=205.162) pulls that HR to -44.568° — still close to the edge but inside
+    the ±45° band. With fitted constants, **zero** clamp events occur for the 6 Judge HRs.
+
+    We assert: (a) all raw angles fall inside the documented band; (b) the near-edge HR
+    (823563 coordX=8.83, coordY=86.61) lands within 1° of the ±45° boundary — documenting
+    that the clamp edge is close, even if not crossed.
+    """
+    near_edge_seen = False
     clamp_events = 0
     for hr in judge_hrs:
         raw, clamped, _ = gameday_to_spray_and_distance(hr["coordX"], hr["coordY"])
         assert -47.0 < raw < 14.0, f"HR {hr['gamePk']} raw angle {raw:.2f} outside expected band"
         if raw != clamped:
             clamp_events += 1
-    # RESEARCH.md §Key empirical findings #2: exactly one clamp event
-    # (gamePk 823563 HR2 at -45.95°).
-    assert clamp_events == 1, f"Expected exactly 1 clamp event per RESEARCH.md, got {clamp_events}"
+        if raw < -44.0:
+            near_edge_seen = True
+    # Fitted calibration: every HR is inside [-45, +45]; no clamping required.
+    assert clamp_events == 0, f"Expected 0 clamp events with fitted calibration, got {clamp_events}"
+    # Sanity: the HR the researcher flagged (823563 HR2) is still near the LF edge.
+    assert near_edge_seen, "Expected at least one HR within 1° of the -45° clamp edge"
