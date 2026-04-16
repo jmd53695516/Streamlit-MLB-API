@@ -35,7 +35,7 @@ MOUND_DISTANCE_FT = 60.5
 BASE_DISTANCE_FT = 90.0
 INFIELD_SKIN_RADIUS_FT = 95.0
 HOME_PLATE_SIZE_FT = 1.5
-BASE_MARKER_SIZE_FT = 1.25
+MOUND_RADIUS_FT = 5.0
 
 # --- Viewport (D-04 -- fixed across all 30 parks) ---
 X_RANGE = [-450, 450]
@@ -139,7 +139,7 @@ def _mound_trace() -> go.Scatter:
     fill='toself' polygon so z-order follows trace-add order (Pitfall 2).
     """
     theta = np.linspace(0.0, 2.0 * np.pi, 25)
-    radius = 5.0
+    radius = MOUND_RADIUS_FT
     xs = radius * np.cos(theta)
     ys = MOUND_DISTANCE_FT + radius * np.sin(theta)
     return go.Scatter(

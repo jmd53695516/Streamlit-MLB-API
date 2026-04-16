@@ -1,8 +1,7 @@
-"""Streamlit entry point for the MLB HR Park Factor Explorer.
+"""MLB HR Park Factor Explorer — Streamlit entry point.
 
-Phase 4 — raw ViewModel dump. Wires Team -> Player -> Stadium selectors to
-controller.build_view and renders the structured result as st.json +
-st.dataframe. Chart (Phase 5) and polish (Phase 6) land in later phases.
+Wires Team -> Player -> Stadium selectors to controller.build_view and
+renders spray chart + HR table.
 
 Architecture (D-23): this module is the ONLY place that touches
 st.session_state. controller.py + services/ stay UI-free.
@@ -54,11 +53,10 @@ def _on_player_change() -> None:
 
 # --- Page chrome (UI-SPEC §Copywriting Contract) ---
 st.title("MLB HR Park Factor Explorer")
-st.caption("Phase 4 — raw ViewModel dump. Chart arrives in Phase 5.")
 
 
 # --- Team selectbox (always populated — single eager fetch, D-18) ---
-teams = controller._sorted_teams(get_teams())
+teams = controller.sorted_teams(get_teams())
 team_options = [t["id"] for t in teams]
 team_labels = {t["id"]: f'{t["name"]} ({t["abbreviation"]})' for t in teams}
 
@@ -77,14 +75,14 @@ st.selectbox(
 # --- Player selectbox (only fetches when team is selected, D-18) ---
 team_id = st.session_state.get("team_id")
 if team_id is not None:
-    roster = controller._sorted_hitters(
+    roster = controller.sorted_hitters(
         get_team_hitting_stats(team_id, CURRENT_SEASON)
     )
     player_options = [e["person"]["id"] for e in roster]
     player_labels = {
         e["person"]["id"]: (
             f'{e["person"]["fullName"]} — '
-            f'{controller._hr_of(e)} HR'
+            f'{controller.hr_of(e)} HR'
         )
         for e in roster
     }
@@ -145,7 +143,7 @@ else:
         n = len(view.errors)
         noun = "game feed" if n == 1 else "game feeds"
         st.warning(
-            f"{n} {noun} failed to fetch; see raw ViewModel below for details."
+            f"{n} {noun} failed to fetch; HR data may be incomplete."
         )
 
     # --- Spray chart (Phase 5, VIZ-01/02/03) ---
@@ -168,11 +166,7 @@ else:
             use_container_width=True,
         )
 
-    # Raw JSON dump (always, D-24).
-    st.subheader("ViewModel (raw)")
-    st.json(view.to_dict())
-
-    # Plottable dataframe (D-24, only when plottable_events non-empty).
+    # Plottable dataframe (only when plottable_events non-empty).
     if view.plottable_events:
         st.subheader("Plottable HRs")
         rows = []
