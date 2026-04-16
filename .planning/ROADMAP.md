@@ -38,7 +38,10 @@
   3. A player who was traded or retired in a past season appears in the roster for that year
   4. Switching to a past season fetches cached responses with 30d TTL; switching back to the current season uses 1h TTL
   5. The game-feed cache is bounded and does not exhaust Streamlit Community Cloud memory on a cold load of a high-HR player
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Config + UI: dynamic season constants, selectbox, cascade callback, season threading
+- [ ] 07-02-PLAN.md — API caching: conditional rosterType, two-function TTL split, max_entries cap
 **UI hint**: yes
 
 ### Phase 8: Cloud Deployment
@@ -62,8 +65,8 @@
 | 4. Controller & Selectors UI | v1.0 | 3/3 | Complete | 2026-04-15 |
 | 5. Spray Chart Visualization | v1.0 | 3/3 | Complete | 2026-04-16 |
 | 6. Summary, Rankings & Polish | v1.0 | 2/2 | Complete | 2026-04-16 |
-| 7. Multi-Season Selector | v1.1 | 0/? | Not started | - |
+| 7. Multi-Season Selector | v1.1 | 0/2 | Planned | - |
 | 8. Cloud Deployment | v1.1 | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-04-16 after v1.1 roadmap creation*
+*Last updated: 2026-04-16 after Phase 7 planning*
