@@ -49,21 +49,21 @@ Deferred to future milestone.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEASON-01 | TBD | Pending |
-| SEASON-02 | TBD | Pending |
-| SEASON-03 | TBD | Pending |
-| SEASON-04 | TBD | Pending |
-| SEASON-05 | TBD | Pending |
-| DEPLOY-01 | TBD | Pending |
-| DEPLOY-02 | TBD | Pending |
-| DEPLOY-03 | TBD | Pending |
-| DEPLOY-04 | TBD | Pending |
+| SEASON-01 | Phase 7 | Pending |
+| SEASON-02 | Phase 7 | Pending |
+| SEASON-03 | Phase 7 | Pending |
+| SEASON-04 | Phase 7 | Pending |
+| SEASON-05 | Phase 7 | Pending |
+| DEPLOY-01 | Phase 8 | Pending |
+| DEPLOY-02 | Phase 8 | Pending |
+| DEPLOY-03 | Phase 8 | Pending |
+| DEPLOY-04 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 9 total
-- Mapped to phases: 0
-- Unmapped: 9 (pending roadmap)
+- Mapped to phases: 9
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-16*
-*Last updated: 2026-04-16 after initial definition*
+*Last updated: 2026-04-16 after v1.1 roadmap creation*
