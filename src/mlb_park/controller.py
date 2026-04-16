@@ -1,10 +1,7 @@
-"""Phase 4 controller — ViewModel + (future) build_view.
+"""Controller — ViewModel + build_view entry point for the MLB HR Park Factor Explorer.
 
 This module is the ONLY place that composes pipeline output for the UI. It
 must NOT import `streamlit` (D-23) — UI concerns live in app.py / views/.
-
-Plan 04-01 scope: ViewModel dataclass + to_dict() JSON projection only.
-The build_view entry point lands in Plan 04-02 (Wave 2).
 
 Import discipline (D-02): every runtime dependency flows through
 `mlb_park.pipeline`. VerdictMatrix is imported from geometry as a TYPE
@@ -137,11 +134,11 @@ def _verdict_matrix_summary(matrix: VerdictMatrix | None) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Plan 04-02 helpers — _sorted_teams / _sorted_hitters (UX-01, UX-02, D-12/13).
+# Selector helpers — sorted_teams / sorted_hitters (UX-01, UX-02, D-12/13).
 # ---------------------------------------------------------------------------
 
 
-def _sorted_teams(teams: list[dict]) -> list[dict]:
+def sorted_teams(teams: list[dict]) -> list[dict]:
     """Return teams sorted by `name` ascending (UX-01).
 
     Pure: no mutation of the input list. Missing `name` sorts as empty string
@@ -151,27 +148,27 @@ def _sorted_teams(teams: list[dict]) -> list[dict]:
     return sorted(teams, key=lambda t: t.get("name", ""))
 
 
-def _hr_of(entry: dict) -> int:
+def hr_of(entry: dict) -> int:
     """Extract `person.stats[0].splits[0].stat.homeRuns`, defaulting to 0 (D-13)."""
-    stats = entry.get("person", {}).get("stats") or []
-    if not stats:
-        return 0
-    splits = stats[0].get("splits") or []
-    if not splits:
-        return 0
-    raw = splits[0].get("stat", {}).get("homeRuns", 0)
     try:
+        stats = entry.get("person", {}).get("stats") or []
+        if not stats or not isinstance(stats[0], dict):
+            return 0
+        splits = stats[0].get("splits") or []
+        if not splits or not isinstance(splits[0], dict):
+            return 0
+        raw = splits[0].get("stat", {}).get("homeRuns", 0)
         return int(raw or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         return 0
 
 
-def _name_of(entry: dict) -> str:
+def name_of(entry: dict) -> str:
     """Extract `person.fullName`, defaulting to empty string."""
     return entry.get("person", {}).get("fullName", "") or ""
 
 
-def _sorted_hitters(roster: list[dict]) -> list[dict]:
+def sorted_hitters(roster: list[dict]) -> list[dict]:
     """Filter non-pitchers, then sort by (-homeRuns, fullName) (D-12, D-13).
 
     Missing `position` key ⇒ WARNING logged per-entry, entry treated as
@@ -185,12 +182,12 @@ def _sorted_hitters(roster: list[dict]) -> list[dict]:
         if not position:
             log.warning(
                 "Roster entry missing position; treating as non-pitcher: %s",
-                _name_of(entry) or "<unknown>",
+                name_of(entry) or "<unknown>",
             )
         if position.get("type") == "Pitcher":
             continue
         out.append(entry)
-    return sorted(out, key=lambda e: (-_hr_of(e), _name_of(e)))
+    return sorted(out, key=lambda e: (-hr_of(e), name_of(e)))
 
 
 # ---------------------------------------------------------------------------
@@ -286,12 +283,18 @@ def build_view(
 
     # 1. Selection-context lookups (team/player/venue display fields).
     teams = api.get_teams()
-    team = next(t for t in teams if t["id"] == team_id)
+    team = next((t for t in teams if t["id"] == team_id), None)
+    if team is None:
+        raise ValueError(f"team_id {team_id} not found in get_teams() response")
     team_abbr = team.get("abbreviation", "") or ""
     player_home_venue_id = int(team.get("venue", {}).get("id", 0) or 0)
 
     roster = api.get_team_hitting_stats(team_id, season)
-    player_entry = next(e for e in roster if e["person"]["id"] == player_id)
+    player_entry = next(
+        (e for e in roster if e["person"]["id"] == player_id), None
+    )
+    if player_entry is None:
+        raise ValueError(f"player_id {player_id} not found in roster for team {team_id}")
     player_name = player_entry["person"].get("fullName", "") or ""
 
     parks_dict = api.load_all_parks()
@@ -341,11 +344,11 @@ def build_view(
     )
 
 
-# `field` is re-exported for downstream helpers in Plan 04-02 (pre-empts an import churn commit).
 __all__ = [
     "ViewModel",
     "build_view",
-    "field",
-    "_sorted_teams",
-    "_sorted_hitters",
+    "sorted_teams",
+    "sorted_hitters",
+    "hr_of",
+    "name_of",
 ]

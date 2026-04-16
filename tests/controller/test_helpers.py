@@ -1,8 +1,8 @@
 """Unit tests for controller helper functions (Plan 04-02 Task 1).
 
 Covers:
-  - _sorted_teams: alphabetical by `name` (UX-01).
-  - _sorted_hitters: non-pitcher filter (D-12) + (-homeRuns, fullName) sort (UX-02/D-13).
+  - sorted_teams: alphabetical by `name` (UX-01).
+  - sorted_hitters: non-pitcher filter (D-12) + (-homeRuns, fullName) sort (UX-02/D-13).
 
 All fixture loads route through the Plan 04-01 session fixtures; ad-hoc tests
 build minimal synthetic roster dicts inline to pin specific edge cases.
@@ -13,11 +13,11 @@ import logging
 
 import pytest
 
-from mlb_park.controller import _sorted_hitters, _sorted_teams
+from mlb_park.controller import sorted_hitters, sorted_teams
 
 
 # ---------------------------------------------------------------------------
-# _sorted_teams
+# sorted_teams
 # ---------------------------------------------------------------------------
 
 def test_sorted_teams_orders_by_name_asc():
@@ -26,16 +26,16 @@ def test_sorted_teams_orders_by_name_asc():
         {"id": 2, "name": "Athletics"},
         {"id": 3, "name": "Mets"},
     ]
-    out = _sorted_teams(teams)
+    out = sorted_teams(teams)
     assert [t["name"] for t in out] == ["Athletics", "Mets", "Yankees"]
 
 
 def test_sorted_teams_handles_empty():
-    assert list(_sorted_teams([])) == []
+    assert list(sorted_teams([])) == []
 
 
 # ---------------------------------------------------------------------------
-# _sorted_hitters helpers
+# sorted_hitters helpers
 # ---------------------------------------------------------------------------
 
 def _make_entry(
@@ -63,7 +63,7 @@ def _make_entry(
 
 
 def test_sorted_hitters_excludes_pitchers(team_stats_nyy_2026):
-    out = _sorted_hitters(team_stats_nyy_2026)
+    out = sorted_hitters(team_stats_nyy_2026)
     for e in out:
         assert e["position"]["type"] != "Pitcher"
 
@@ -74,7 +74,7 @@ def test_sorted_hitters_sort_order():
         _make_entry(person_id=2, full_name="Judge", position_type="Outfielder", home_runs=17),
         _make_entry(person_id=3, full_name="Aaron", position_type="Outfielder", home_runs=0),
     ]
-    out = _sorted_hitters(roster)
+    out = sorted_hitters(roster)
     assert [e["person"]["fullName"] for e in out] == ["Judge", "Cole", "Aaron"]
 
 
@@ -83,12 +83,12 @@ def test_sorted_hitters_tiebreak_by_name():
         _make_entry(person_id=1, full_name="Zed",   position_type="Outfielder", home_runs=10),
         _make_entry(person_id=2, full_name="Alice", position_type="Outfielder", home_runs=10),
     ]
-    out = _sorted_hitters(roster)
+    out = sorted_hitters(roster)
     assert [e["person"]["fullName"] for e in out] == ["Alice", "Zed"]
 
 
 def test_sorted_hitters_zero_hr_player_included(team_stats_zero_hr_player):
-    out = _sorted_hitters(team_stats_zero_hr_player)
+    out = sorted_hitters(team_stats_zero_hr_player)
     ids = [e["person"]["id"] for e in out]
     assert 900001 in ids, "0-HR hitter must remain in the output (D-13)"
 
@@ -109,7 +109,7 @@ def test_sorted_hitters_missing_position_defaults_non_pitcher(caplog):
         },
     ]
     with caplog.at_level(logging.WARNING, logger="mlb_park.controller"):
-        out = _sorted_hitters(roster)
+        out = sorted_hitters(roster)
     ids = [e["person"]["id"] for e in out]
     assert 999 in ids, "missing-position entry must be treated as non-pitcher"
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -125,9 +125,9 @@ def test_sorted_hitters_missing_homeruns_defaults_zero():
             "position": {"type": "Outfielder"},
         },
     ]
-    out = _sorted_hitters(roster)
+    out = sorted_hitters(roster)
     assert [e["person"]["fullName"] for e in out] == ["HasHRs", "NoStats"]
 
 
 def test_sorted_hitters_empty_roster():
-    assert list(_sorted_hitters([])) == []
+    assert list(sorted_hitters([])) == []
