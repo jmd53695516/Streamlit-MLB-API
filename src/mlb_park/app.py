@@ -189,6 +189,12 @@ else:
         if view.verdict_matrix is not None:
             ranking_df = controller.build_park_ranking(view)
             with st.expander("Park Rankings"):
+                n_hrs = len(view.plottable_events)
+                st.caption(
+                    f"How many of {view.player_name}'s {n_hrs} "
+                    f"HR{'s' if n_hrs != 1 else ''} would clear the fence at each park."
+                )
+
                 def _highlight_top_bottom(row):
                     """Highlight top 3 green, bottom 3 red (D-02 tie handling)."""
                     idx = row.name  # integer index after reset_index
