@@ -553,20 +553,23 @@ def _apply_layout(fig: go.Figure) -> None:
 | A4 | Hover does NOT trigger Streamlit reruns (only `on_select="rerun"` does) | Pitfall 7 | Low — this is documented Streamlit behavior and easy to confirm in manual smoke. |
 | A5 | Plotly 6 `go.Scatter.marker.color` accepts a list of hex strings per-point (not a single color) | Pattern 4 | Very low — this is canonical Plotly usage since v1. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does D-09's `build_figure(view: ViewModel)` signature permit amendment to `build_figure(view, park)`?**
    - What we know: D-09 uses the single-arg form verbatim. CONTEXT.md lists "Whether to expose selected_park_idx as kwarg or derive from view.venue_id" as Claude's discretion.
    - What's unclear: whether "discretion" extends to adding a `park` positional arg.
    - Recommendation: either (a) plan a tiny ViewModel amendment to carry `selected_park: Park` (cleanest, one-line change in `build_view`), or (b) use `build_figure(view, park)` with a note that D-09's wording should be relaxed. **Prefer (a).** The planner should lock this in Wave 0.
+   - RESOLVED: Option (b). Signature is `build_figure(view: ViewModel, park: Park) -> go.Figure`. Park resolved in app.py from parks_map.
 
 2. **Infield skin as filled polygon vs layout.shape?**
    - What we know: both work; CONTEXT.md lists as Claude's discretion.
    - Recommendation: polygon trace (Pattern 2, second approach). Testable, self-clipping, z-order-safe.
+   - RESOLVED: Polygon trace (`_infield_skin_trace`), not layout.shape — avoids Pitfall 2 z-order.
 
 3. **Base marker visual: `symbol="diamond"` vs a small square rotated 45°?**
    - What we know: no strong preference in CONTEXT.
    - Recommendation: `symbol="square"` with white fill; Plotly's "diamond" symbol is actually rotated-square and reads fine. 14 px size. Defer visual tuning to Wave 3 smoke.
+   - RESOLVED: `symbol="pentagon"` for home plate; `symbol="diamond"` for 1B/2B/3B; size 10px.
 
 ## Validation Architecture
 
