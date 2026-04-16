@@ -1,227 +1,230 @@
-# Stack Research
+# Technology Stack
 
-**Domain:** Lightweight Streamlit data-visualization hobby app (MLB home-run park-factor explorer)
-**Researched:** 2026-04-14
-**Confidence:** HIGH (core stack verified against 2026 PyPI releases and official docs); MEDIUM on geometry choice (informed judgment for the specific workload).
-
-## Context & Locked Decisions (do not re-open)
-
-- UI framework: **Streamlit** (locked)
-- MLB data source: **Direct HTTP to `statsapi.mlb.com/api/v1`** via a plain HTTP client — **no** third-party wrappers (e.g., `MLB-StatsAPI`) (locked)
-- Scope: current season, single-user local app
-
-Everything below is the supporting stack around those two pillars.
+**Project:** Streamlit MLB HR Park Factor Explorer — v1.1 Multi-Season & Deploy
+**Researched:** 2026-04-16
+**Scope:** ADDITIONS AND CHANGES ONLY. Existing stack (Python 3.12, Streamlit 1.56, Plotly 6.7, pandas 2.2, requests 2.32, numpy 2.x) is locked — not re-researched here.
 
 ---
 
-## Recommended Stack
+## What Changes in v1.1
 
-### Core Technologies
+Two discrete concerns:
 
-| Technology | Version | Purpose | Why Recommended |
-|---|---|---|---|
-| Python | **3.12** (3.11 minimum) | Runtime | 3.12 is the current mainstream target for Streamlit 1.56 and the broader data-viz ecosystem; 3.13 still has sporadic wheel gaps for niche C-ext libs. 3.12 is the safe-and-fast default in April 2026. |
-| Streamlit | **1.56.0** (released 2026-03-31) | UI framework | Locked. Pin to `>=1.55,<2.0` — 1.55 added `on_change` on `st.tabs`/`st.popover`/`st.expander` and `bind=` URL-state for widgets, both genuinely useful for cascading Team -> Player -> Stadium selectors. |
-| requests | **2.32.x** | HTTP client to `statsapi.mlb.com` | Streamlit reruns top-to-bottom on every interaction — the app is **sync-first**. `requests` is the standard sync client, battle-tested, and the MLB StatsAPI is a handful of cached GETs per rerun (no concurrency win to justify `httpx`). Keep it boring. |
-| plotly | **6.7.0** (released 2026-04-09) | Spray chart + stadium outline overlay | See "Plotting Decision" below. Plotly wins for interactive scatter-over-polygon with hover tooltips, which is exactly the spray-chart interaction pattern. |
-| pandas | **2.2.x** | Tabular data wrangling (HR event table, per-park verdict matrix) | Mature, Streamlit-native (`st.dataframe`, `st.data_editor` both assume pandas), and performance is a non-issue at this data volume (~50 HRs x 30 parks = 1,500 rows max). Polars would be overkill and creates integration friction with `st.data_editor`. |
+1. **Multi-season selector** — API layer changes, cache key changes, TTL policy for historical vs. current season data.
+2. **Streamlit Community Cloud deployment** — packaging, Python version pinning, src-layout accommodation, secrets, disk-cache incompatibility.
 
-### Supporting Libraries
-
-| Library | Version | Purpose | When to Use |
-|---|---|---|---|
-| numpy | **2.x** (whatever pandas 2.2 pulls in) | Vector math for the 30-park fence-distance interpolation | Pulled in transitively by pandas/plotly; use directly for the vectorized "is distance >= interpolated_fence_at(angle)" check across all 30 parks at once. |
-| python-dateutil | latest | Parsing MLB StatsAPI date strings | Pulled in by pandas; handy for game-date parsing. No need to add explicitly. |
-
-**Deliberately NOT adding:**
-- `shapely` — see "Geometry Decision" below. Not worth the GEOS C dependency for this workload.
-- `httpx` — sync-only app, no concurrency needs, `requests` suffices.
-- `polars` — overkill at this data volume and worse Streamlit widget integration than pandas.
-- `requests-cache` — `st.cache_data` already solves the caching problem at the right layer (the Streamlit function boundary). Adding `requests-cache` on top creates two overlapping caches with different invalidation models. See "Caching Decision" below.
-- `matplotlib` — static-first, clumsy hover/click in Streamlit. Only reach for it if Plotly's polygon rendering surprises you.
-- `altair` — fast and pretty, but the 5,000-row default limit and the Vega-Lite abstraction layer make custom polygon overlays (stadium outlines) awkward compared to Plotly's imperative `Scatter`/`Scatterpolar` traces.
-
-### Development Tools
-
-| Tool | Purpose | Notes |
-|---|---|---|
-| **uv** (Astral) | Package + venv manager | Use `uv` as a drop-in replacement for `pip`/`venv`. `uv pip install -r requirements.txt` works without any migration. 10-100x faster installs matter less than its automatic venv handling for a hobby project. |
-| requirements.txt | Dependency pinning | Keep it as a flat `requirements.txt` (not `pyproject.toml` + lock). This is a single-file hobby app — `pyproject.toml` is ceremony. `uv` reads `requirements.txt` natively. |
-| ruff | Linter/formatter (optional) | If you want any linting, ruff is the 2026 default. Skip if you don't care. |
+No new libraries are needed for either concern. The changes are configuration and code, not dependency additions.
 
 ---
 
-## Installation
+## Multi-Season Support
 
-```bash
-# Install uv once (Windows PowerShell or bash)
-pip install uv  # or: winget install --id=astral-sh.uv
+### API Layer — What Already Works
 
-# Create venv and install deps
-uv venv
-uv pip install -r requirements.txt
-```
+The existing `mlb_api.py` already accepts `season: int` as a parameter in the two season-sensitive endpoints:
 
-**`requirements.txt`:**
+- `get_game_log(person_id, season)` — calls `/people/{id}/stats?stats=gameLog&season={season}` — VERIFIED: returns historical data (tested against Ohtani 2022 via direct HTTP call during this research).
+- `get_team_hitting_stats(team_id, season)` — calls `/teams/{team_id}/roster?hydrate=person(stats(type=statsSingleSeason,season={season},...))`.
+- `get_game_feed(game_pk)` — game PKs are globally unique across seasons; no season param needed.
+- `get_teams()`, `get_venue()` — season-agnostic.
+
+The `season` integer flows through the call stack already. `CURRENT_SEASON = 2026` in `config.py` is the only hardcoded constant to expose in the UI.
+
+### Roster Endpoint — Historical Season Caveat
+
+`/teams/{id}/roster?rosterType=active` returns the CURRENT active roster regardless of any season parameter. For historical seasons (2022–2025), querying "active" roster will show 2026 players, not the players who were on that team in the selected season.
+
+**Implication:** The player selector must change behavior for past seasons. Two options:
+
+| Option | Endpoint | Tradeoff |
+|--------|----------|----------|
+| Keep active roster, let user pick any player, filter on HRs found | `/teams/{id}/roster` (existing) | Simple, but lists 2026 players for past seasons — confusing if a player was traded |
+| Use season-appropriate roster | `/teams/{id}/roster?season={year}&rosterType=fullSeason` | Returns players who appeared on that team during that season — more correct |
+
+**Recommendation: `rosterType=fullSeason&season={year}`** for historical seasons (2021–2025). The API accepts a `season` query parameter on the roster endpoint. Use `rosterType=active` (no season param) for the current season (2026) only, since "full season" for an in-progress year may be incomplete. Confidence: MEDIUM — verified that `season` is a documented roster param via endpoint inspection; behavior for in-progress seasons is inferred.
+
+### TTL Policy — Historical vs. Current Season
+
+Historical seasons (any year before current) are immutable. A game from 2022 will never change. Current TTLs are conservative (`1h` for gameLogs, `7d` for feeds) because today's data updates.
+
+| Endpoint | Current Season TTL | Historical Season TTL | Rationale |
+|----------|-------------------|----------------------|-----------|
+| `get_game_log(person_id, season)` | `"1h"` | `"7d"` or `None` (infinite) | 2022 gameLogs are frozen |
+| `get_game_feed(game_pk)` | `"7d"` | `"7d"` (already good) | Completed feeds are immutable |
+| `get_team_hitting_stats(team_id, season)` | `"1h"` | `"7d"` | Historical stats don't change |
+| `get_teams()` | `"24h"` | same | Season-agnostic |
+| `get_venue()` | `"24h"` | same | Season-agnostic |
+
+**Implementation note:** `st.cache_data` does not support conditional TTLs based on argument values — the TTL is fixed at decoration time. Two patterns to handle this:
+
+- **Pattern A — Two decorated functions:** `get_game_log_current(person_id)` with `ttl="1h"`, `get_game_log_historical(person_id, season)` with `ttl="7d"`. Clean but adds surface area.
+- **Pattern B — One function, short TTL:** Keep `ttl="1h"` on all season-aware endpoints. Historical data re-caches after every hour but that's just a Streamlit process restart — the cache is ephemeral anyway. For a hobby app with no persistent cache between deploys, this is fine.
+
+**Recommendation: Pattern B.** The cache eviction cost on a hobby app is negligible. Avoid two nearly-identical functions per endpoint. If the venue disk cache (`data/venues_cache.json`) is ported to cover game feeds, Pattern A becomes worth it — but that's a future concern.
+
+### Season Range
+
+Last 5 complete seasons plus current: **2022, 2023, 2024, 2025, 2026**. The 2020 COVID season (60 games) and 2021 are within range but data quality varies for 2020. A dropdown of `[2026, 2025, 2024, 2023, 2022]` ordered most-recent-first is the correct default.
+
+**Note on 2020:** The `statsapi.mlb.com` gameLog endpoint returns 2020 data correctly (it existed), but the season had no spring training and altered schedules. Including 2022+ and excluding 2020–2021 keeps the dataset clean. Include 2021 if you want 5 full seasons; exclude 2020.
+
+Confidence: MEDIUM — API behavior for 2020/2021 based on general knowledge of the API and the COVID season; not directly tested.
+
+---
+
+## Streamlit Community Cloud Deployment
+
+### Python Version
+
+Community Cloud supports all Python versions still receiving security updates. As of April 2026, that is Python 3.9 through 3.13. Python 3.12 (the project's current runtime) is fully supported.
+
+**Version pinning:** Python version is set in the **Advanced settings UI** during initial deployment — NOT via `runtime.txt`. Multiple 2025 community reports confirm `runtime.txt` is ignored or unreliable on Community Cloud; the UI dialog is the only reliable mechanism. Python cannot be changed after deployment without deleting and redeploying. Select **3.12** explicitly in Advanced settings.
+
+Confidence: HIGH (official docs confirm UI-based selection; MEDIUM on runtime.txt deprecation — multiple forum reports but no official deprecation notice found).
+
+### Dependency File
+
+Community Cloud checks for dependency files in this priority order: `uv.lock` > `Pipfile` > `environment.yml` > `requirements.txt` > `pyproject.toml`.
+
+**The project already has both `requirements.txt` and `pyproject.toml`.** Community Cloud will pick up `requirements.txt` first (it's higher priority than `pyproject.toml`) and install from it. This is the correct behavior — `requirements.txt` is the deployment artifact.
+
+**Action required:** The existing `requirements.txt` lists only the four runtime deps and `pytest`. For Cloud deployment:
+- Remove `pytest` from `requirements.txt` — test-only dep, wastes install time on Cloud.
+- Do NOT add `pytest` to a separate file; it's already in `pyproject.toml` under `dependencies` (which Cloud won't read). Better: move pytest to a `[project.optional-dependencies]` group in `pyproject.toml` and keep `requirements.txt` clean for production.
+
+Current `requirements.txt`:
 ```
 streamlit>=1.55,<2.0
 requests>=2.32,<3.0
-plotly>=6.0,<7.0
+plotly>=6.7,<7.0
 pandas>=2.2,<3.0
+pytest>=8.0,<9.0    ← remove for Cloud
 ```
 
-That's it. Four direct dependencies. `numpy` comes in via pandas/plotly.
+### src/ Layout — Package Installation
 
----
+The app uses a `src/mlb_park/` layout with `app.py` importing from `mlb_park.*`. On local dev, the package is installed via `pip install -e .` (editable) which puts `mlb_park` on `sys.path`. Community Cloud does NOT run `pip install -e .` — it only installs from the dependency file.
 
-## Key Stack Decisions (the "why")
+**Two viable solutions:**
 
-### Plotting Decision: Plotly over Matplotlib / Altair
-
-The core viz is: **a closed polygon (stadium outline) + a scatter layer of HR landing points, color-coded by a per-HR verdict, with hover tooltips showing distance/EV/launch angle**.
-
-| Library | Verdict | Reasoning |
-|---|---|---|
-| **Plotly** | **Chosen** | Native interactivity (hover, zoom, pan) with zero extra server load via `st.plotly_chart`. Polygon overlays are trivial: add a `Scatter` trace with `fill='toself'` for the stadium outline, then a second `Scatter` trace for HRs with `marker.color` mapped to verdict. Hover tooltips via `customdata`/`hovertemplate` are made for per-HR metadata. |
-| Matplotlib | Rejected | Static by default; hover requires `mpld3`/extra plumbing. Interactive spray charts feel sluggish in Streamlit. Only use if you hit a Plotly rendering weirdness. |
-| Altair | Rejected | Hits a 5,000-row default limit (not our problem at 50-60 HRs, but a papercut waiting to happen), and the Vega-Lite grammar makes custom polygon overlays more awkward than Plotly's imperative traces. Great for native statistical charts, less great for "draw this specific shape." |
-
-**Confidence: HIGH.** Plotly 6.7 is the current release (2026-04-09), and Streamlit 1.56 ships a theme token (`theme.chartDivergingColors`) that applies to Plotly charts — clear indication Plotly is a first-class integration.
-
-### HTTP Decision: requests over httpx
-
-Streamlit executes top-to-bottom on every user interaction. There's no event loop, no concurrency win from async. The app fires a handful of cached GETs per rerun (teams, roster, gameLog, game feeds, venues) and then renders. `requests` is:
-
-- Synchronous (matches Streamlit's execution model)
-- Zero learning curve
-- The default for ~95% of Streamlit API-wrapping examples in the wild
-
-`httpx` would be defensible if you wanted HTTP/2 or to parallelize the game-feed fetches (N games with HRs -> N game-feed calls). If that becomes a real bottleneck, the upgrade path is: wrap the per-game fetch in `concurrent.futures.ThreadPoolExecutor` with `requests`. Only reach for `httpx` (or async) if thread-pool caching proves insufficient.
-
-**Confidence: HIGH.**
-
-### Caching Decision: st.cache_data only, no requests-cache
-
-Two caches > one cache only if they solve different problems. They don't here.
-
-- `@st.cache_data(ttl=...)` caches the **parsed Python return value** (dicts, DataFrames) at the function boundary. TTL per function is trivial: `ttl="24h"` for `/venues`, `ttl="1h"` for `/schedule` and game feeds, `ttl="6h"` for team/roster.
-- `requests-cache` would cache the **raw HTTP response** on disk. It duplicates what `st.cache_data` already does, and adds a second invalidation knob to get wrong.
-
-**Recommended pattern:**
+**Option A — Add `sys.path` shim in `app.py` (simplest):**
 ```python
-@st.cache_data(ttl="24h", show_spinner=False)
-def get_venue(venue_id: int) -> dict:
-    r = requests.get(f"https://statsapi.mlb.com/api/v1/venues/{venue_id}",
-                     params={"hydrate": "fieldInfo"}, timeout=10)
-    r.raise_for_status()
-    return r.json()
-
-@st.cache_data(ttl="1h", show_spinner=False)
-def get_game_feed(game_pk: int) -> dict: ...
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).parent / "src"))
 ```
+Add at the top of `src/mlb_park/app.py` before any `mlb_park` imports. Works on Cloud without any packaging changes. Verified approach from community discussion.
 
-**TTL guide for this app:**
-| Endpoint | TTL | Rationale |
-|---|---|---|
-| `/teams?sportId=1` | `"7d"` | 30 teams; changes at season boundaries |
-| `/teams/{id}/roster` | `"6h"` | Roster moves happen but aren't urgent |
-| `/venues/{id}?hydrate=fieldInfo` | `"30d"` | Fence dimensions effectively static |
-| `/people/{id}/stats?stats=gameLog` | `"1h"` | Updates after each game |
-| `/game/{gamePk}/feed/live` | `"1h"` | Finalized feeds are immutable; live ones benefit from short TTL |
+**Option B — Add `.` to `requirements.txt`:**
+```
+.
+streamlit>=1.55,<2.0
+...
+```
+Community Cloud will `pip install .` which triggers setuptools to build and install `mlb_park` from `pyproject.toml`. Cleaner but less battle-tested on Cloud's uv-first install path.
 
-**Confidence: HIGH** (Streamlit official docs confirm `ttl` accepts `"1h"`/`"30d"` string notation and it's the canonical API-caching pattern).
+**Recommendation: Option B** — it's the correct Python packaging approach and `pyproject.toml` already has the right `[tool.setuptools.packages.find] where = ["src"]` config. The `sys.path` shim is a fallback if Option B fails during deploy testing. Add `.` as the FIRST line of `requirements.txt` so it installs before the other packages resolve.
 
-### Data Wrangling Decision: pandas over polars
+Confidence: MEDIUM — both options reported working in community discussions; Option B is the standard approach but Cloud's handling of local `.` installs via uv has some edge cases.
 
-Data volume is tiny (hundreds of rows at peak). The decisive factor is **Streamlit integration**: `st.dataframe` and `st.data_editor` both expect pandas natively; polars requires conversion and `st.data_editor` explicitly does not support polars as of the latest Streamlit releases. Pandas 2.2's PyArrow-backed dtypes are fast enough that the raw-perf argument for polars disappears below ~100K rows.
+### Entry Point
 
-**Confidence: HIGH.**
+Community Cloud runs `streamlit run <entrypoint>` from the repo root. The entry point is configured during deployment. For this project, set it to `src/mlb_park/app.py`. Paths use forward slashes even on the UI.
 
-### Geometry Decision: roll your own with `math.atan2` + numpy, skip shapely
+### Disk Cache — Incompatibility
 
-The geometry problem here is narrow:
-1. **Spray angle** from `(coordX, coordY)` relative to home plate — one `math.atan2(dx, dy)` call per HR.
-2. **Fence distance at that angle** for each of 30 parks — 1-D linear interpolation between the 6 known fence measurements (LF line / LF / LCF / CF / RCF / RF line), which is `numpy.interp` on a sorted angle->distance array per park.
-3. **Stadium outline as a polygon** for *drawing*, not for point-in-polygon testing — you're not asking "is this HR inside the park's polygon?", you're asking "is this HR's distance >= the fence distance at its spray angle?" That's a 1-D comparison, not a 2-D geometric containment check.
+The existing `load_all_parks()` writes `data/venues_cache.json` to the repo root. On Community Cloud:
 
-Shapely would give you `Polygon.contains(Point)`, which is the wrong operation — a ball landing *past* the fence is outside the polygon, not inside, and the wall-height problem that's already deferred to v1 would still be unaddressed. For ~30 parks x ~50 HRs, a vectorized numpy `interp` is both faster and clearer than building 30 shapely polygons.
+1. `data/` is gitignored — it will NOT be present in the deployed repo clone.
+2. The Cloud filesystem is **ephemeral** — files written during a session do not persist across app restarts/sleeps.
+3. Every cold start will call the API to rebuild `venues_cache.json`, then lose it on restart.
 
-**Shapely is justified later if:** you ever want to draw realistic ground-rule zones, model wall segments as distinct line strings with per-segment heights, or do spatial joins. None of that is in v1 scope.
+**The disk cache is a local-only optimization.** On Cloud it degrades silently to "rebuild every cold start" — that's acceptable (30 venue calls, each cached in `st.cache_data` for 24h within a session). No code change is strictly required; `load_all_parks()` will just always take the "rebuild from API" branch.
 
-**Confidence: MEDIUM** — this is a judgment call, but the 1-D interpolation framing is genuinely the right shape for the problem. If you find yourself writing a ray-casting helper, stop and install shapely.
+**Optional improvement:** Remove the disk-write branch entirely for Cloud by checking an env var, or simply accept the behavior. For a hobby app shared with friends, the occasional 30-venue cold-start fetch (~5 seconds) is tolerable.
 
-### Dependency Pinning Decision: requirements.txt + uv
+Confidence: HIGH — ephemeral filesystem is documented behavior for container-based cloud deployments; gitignore of `data/` is confirmed in the repo.
 
-`uv` with a flat `requirements.txt` gives you:
-- Fast installs (10-100x pip)
-- Automatic venv handling
-- Zero migration cost (it reads `requirements.txt` natively)
-- No `pyproject.toml` / lockfile ceremony that a single-file hobby app doesn't need
+### Secrets Management
 
-Poetry/PDM/Hatch are all defensible for shipping libraries. For a local-only Streamlit app, they're over-structured.
+This app makes no authenticated API calls (statsapi.mlb.com is public). No secrets are required for v1.1.
 
-**Confidence: HIGH.**
+If a future version adds any private keys (e.g., a paid stats provider), use:
+- Local: `.streamlit/secrets.toml` (already gitignored)
+- Cloud: paste contents into "Advanced settings > Secrets" during deployment
+- Code: `st.secrets["key_name"]`
 
----
+No action needed for v1.1.
 
-## Alternatives Considered
+### Sleep Behavior
 
-| Recommended | Alternative | When to Use Alternative |
-|---|---|---|
-| plotly | matplotlib | Rendering a static PNG for a blog post / report export. |
-| plotly | altair | If you were building purely statistical charts (histograms, aggregations) and didn't need a custom polygon overlay. |
-| requests | httpx | If you parallelize game-feed fetches with async and ThreadPool-over-requests isn't fast enough. |
-| requests | aiohttp | Never, for this app. (Async-only, no sync client, no Streamlit advantage.) |
-| pandas | polars | If data volume crossed ~100K rows per rerun — not a concern here. |
-| pandas | duckdb (in-memory) | If you wanted SQL-over-DataFrames for ad-hoc filtering. Overkill. |
-| uv | pip + venv | If you refuse to install anything from Astral. Works identically, just slower. |
-| uv | poetry | If this project grows into a published library with a `pyproject.toml`. |
-| math+numpy geometry | shapely | If you add wall-segment modeling, ground-rule zones, or any 2-D containment queries. |
+Community Cloud hibernates inactive apps after **12 hours** of no traffic. On wake, Streamlit restarts the Python process — the `st.cache_data` in-memory cache is cleared, and the disk cache (`data/venues_cache.json`) is lost. First user after sleep sees a cold start.
 
-## What NOT to Use
+For a hobby app with occasional traffic, this is expected and acceptable. The warm-up fetch (teams + 30 venues) takes ~5–10 seconds on first load.
 
-| Avoid | Why | Use Instead |
-|---|---|---|
-| `MLB-StatsAPI` (toddrob99) | Explicitly out of scope — user wants raw JSON | Direct `requests` to `statsapi.mlb.com/api/v1` |
-| `requests-cache` | Duplicates `st.cache_data`, two invalidation models | `@st.cache_data(ttl=...)` at the function boundary |
-| `pybaseball` | Scrapes Baseball Savant / FanGraphs — different data source, heavy dep tree | Not needed; StatsAPI has everything the v1 spec asks for |
-| `matplotlib` as primary | Static rendering, awkward hover in Streamlit | `plotly` |
-| `asyncio` / `aiohttp` | No event loop in Streamlit's sync rerun model | `requests` (+ optional ThreadPoolExecutor if needed) |
-| `shapely` in v1 | Adds GEOS C dep for a 1-D interpolation problem | `math.atan2` + `numpy.interp` |
-| `poetry` / `pyproject.toml` | Ceremony for a single-file hobby app | `uv` + `requirements.txt` |
-| `st.cache_resource` for API data | That decorator is for connection/model singletons | `st.cache_data` for JSON/DataFrame returns |
+### Resource Limits (Free Tier)
+
+Community reports (verified across multiple forum threads) indicate:
+
+| Resource | Limit | Notes |
+|----------|-------|-------|
+| Memory | ~1 GB guaranteed, up to ~3 GB | App is evicted if it exceeds available memory |
+| CPU | Shared, undisclosed | Not a bottleneck for this app |
+| Storage | Ephemeral filesystem | No persistent disk |
+| Concurrent users | Unlimited (free tier) | Each user gets a separate Python session |
+| App sleep | After 12h inactivity | Cold start on next visit |
+| Deploy updates | Max 5 per minute from GitHub | Not a concern for a hobby app |
+
+This app's peak memory footprint: ~50 HRs × 30 parks = 1,500 rows in pandas, plus Plotly figure JSON, plus Streamlit overhead. Total well under 100 MB per session. The 1 GB limit is not a concern.
+
+Confidence: MEDIUM — memory figures from community forum posts (Feb 2024 reference); not found in official docs. Conservative figure of 1 GB is the widely-cited practical floor.
+
+### App URL Structure
+
+Streamlit Community Cloud apps are deployed at `https://{subdomain}.streamlit.app`. The subdomain can be customized during deployment. Apps under a free account are **public** (no auth). For a hobby app shared with friends, this is fine.
 
 ---
 
-## Version Compatibility
+## Summary: What to Do for v1.1
 
-| Package | Pin | Notes |
-|---|---|---|
-| streamlit>=1.55,<2.0 | 1.55 adds `on_change`/`bind=` improvements; <2.0 hedge against a future major |
-| plotly>=6.0,<7.0 | 6.x is current (6.7.0 shipped 2026-04-09); pin major |
-| pandas>=2.2,<3.0 | 2.2 is the stable PyArrow-dtype-capable line |
-| requests>=2.32,<3.0 | 2.32.x is the long-stable line; requests has never shipped a 3.x |
-| Python 3.12 | Plotly 6, Streamlit 1.56, pandas 2.2 all fully supported |
+| Task | Action | Confidence |
+|------|--------|------------|
+| Season selector UI | Add `st.selectbox` for year in `app.py`, propagate to all season-aware calls | HIGH |
+| Historical roster | Use `rosterType=fullSeason&season={year}` for non-current seasons | MEDIUM |
+| TTL for historical data | Keep existing TTLs (Pattern B — acceptable for hobby app) | HIGH |
+| `requirements.txt` | Add `.` as first line; remove `pytest` | MEDIUM |
+| Entry point | Set to `src/mlb_park/app.py` in Cloud deploy dialog | HIGH |
+| Python version | Select 3.12 in Cloud Advanced settings (NOT runtime.txt) | HIGH |
+| Disk cache | No change needed; degrades gracefully on Cloud | HIGH |
+| Secrets | None required for v1.1 | HIGH |
+| `.streamlit/config.toml` | Create for any Cloud-overrideable settings (optional) | MEDIUM |
 
-No known conflicts in this set as of April 2026.
+## What NOT to Add
+
+| Avoid | Why |
+|-------|-----|
+| `runtime.txt` | Ignored on Community Cloud; use Advanced settings UI instead |
+| New library for season support | The API already supports `season` param; no new dep needed |
+| `requests-cache` or database | `st.cache_data` is sufficient; disk cache degrades gracefully on Cloud |
+| Auth layer | App is intentionally public; hobby app shared with friends |
+| `poetry` / lockfile | Already using `requirements.txt`; no reason to migrate |
 
 ---
 
 ## Sources
 
-- [Streamlit 2026 release notes (docs.streamlit.io)](https://docs.streamlit.io/develop/quick-reference/release-notes/2026) — HIGH confidence; verified 1.55/1.56 features and release dates.
-- [streamlit on PyPI](https://pypi.org/project/streamlit/) — HIGH; confirms 1.56.0 latest.
-- [plotly on PyPI](https://pypi.org/project/plotly/) — HIGH; confirms 6.7.0 (2026-04-09).
-- [st.cache_data - Streamlit Docs](https://docs.streamlit.io/develop/api-reference/caching-and-state/st.cache_data) — HIGH; TTL string notation and function-boundary caching semantics.
-- [Caching overview - Streamlit Docs](https://docs.streamlit.io/develop/concepts/architecture/caching) — HIGH; cache_data vs cache_resource guidance.
-- [Streamlit Chart Libraries Comparison (DEV Community, 2026)](https://dev.to/squadbase/streamlit-chart-libraries-comparison-a-frontend-developers-guide-54il) — MEDIUM; corroborates plotly-for-interactive pattern.
-- [Plot Library Speed Trial (Streamlit forum)](https://discuss.streamlit.io/t/plot-library-speed-trial/4688) — MEDIUM; Altair fast but row-limited, Plotly balanced, Matplotlib slowest.
-- [HTTPX vs Requests vs AIOHTTP (decodo.com, 2026)](https://decodo.com/blog/httpx-vs-requests-vs-aiohttp) — MEDIUM; sync-vs-async framing; requests remains the sync-first default.
-- [Best Python Package Managers in 2026: uv vs pip vs Poetry (scopir.com)](https://scopir.com/posts/best-python-package-managers-2026/) — MEDIUM; uv as drop-in replacement consensus.
-- [uv docs: From pip to a uv project](https://docs.astral.sh/uv/guides/migration/pip-to-project/) — HIGH; official Astral docs confirm `requirements.txt` compatibility.
-- [pandas vs Polars with Streamlit (discuss.streamlit.io)](https://discuss.streamlit.io/t/using-streamlit-cache-with-polars/38000) and [issue #8273](https://github.com/streamlit/streamlit/issues/8273) — MEDIUM; confirms `st.data_editor` does not natively accept polars.
-- [shapely.Polygon docs](https://shapely.readthedocs.io/en/stable/reference/shapely.Polygon.html) — HIGH; confirms shapely's core ops are 2-D containment, not 1-D distance-at-angle which is our actual need.
+- [Streamlit Community Cloud: App dependencies](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies) — HIGH; dependency file priority order, Python version selection.
+- [Streamlit Community Cloud: File organization](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization) — HIGH; entry point, working directory behavior.
+- [Streamlit Community Cloud: Secrets management](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management) — HIGH; TOML format, `st.secrets` access.
+- [Streamlit Community Cloud: Status and limitations](https://docs.streamlit.io/deploy/streamlit-community-cloud/status) — HIGH; Python version policy (security-supported only), Debian 11 runtime, config.toml overrides.
+- [Upgrade Python version on Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app/upgrade-python) — HIGH; UI-based Python selection, delete-and-redeploy to change version.
+- [runtime.txt ignored by Community Cloud (forum thread, 2025)](https://discuss.streamlit.io/t/streamlit-cloud-using-python-3-13-despite-runtime-txt-specifying-3-11/113759) — MEDIUM; confirms runtime.txt unreliable; Advanced settings is the correct mechanism.
+- [src layout deployment discussion](https://discuss.streamlit.io/t/src-layout-for-deployment/88617) — MEDIUM; `sys.path` shim verified working; `.` in requirements.txt as alternative.
+- [uv + pyproject.toml on Community Cloud (forum thread)](https://discuss.streamlit.io/t/install-dependencies-in-streamlit-cloud-based-on-uv-pyproject-toml/79557) — MEDIUM; native uv/pyproject.toml without Poetry not supported; requirements.txt workaround.
+- [Community Cloud memory/compute specs (forum thread)](https://discuss.streamlit.io/t/streamlitcloud-computer-specs/35821) — MEDIUM; ~1 GB guaranteed memory floor.
+- [Community Cloud sleep behavior (forum thread)](https://discuss.streamlit.io/t/sleep/80085) — MEDIUM; 12-hour inactivity sleep confirmed.
+- [MLB StatsAPI gameLog endpoint — live test](https://statsapi.mlb.com/api/v1/people/660271/stats?stats=gameLog&group=hitting&season=2022) — HIGH; confirmed historical season data returned correctly (tested Ohtani 2022).
+- [MLB Data API community docs](https://appac.github.io/mlb-data-api-docs/) — MEDIUM; roster endpoint `season` parameter documented.
 
 ---
-*Stack research for: Streamlit MLB HR Park Factor Explorer*
-*Researched: 2026-04-14*
+*Stack research for: v1.1 Multi-Season & Deploy milestone*
+*Researched: 2026-04-16*

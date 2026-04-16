@@ -1,477 +1,340 @@
-# Architecture Research
+# Architecture Research — v1.1 Multi-Season & Streamlit Cloud
 
 **Domain:** Streamlit single-user data-viz app over MLB StatsAPI (read-only HTTP)
-**Researched:** 2026-04-14
-**Confidence:** HIGH for Streamlit/caching patterns and coordinate math; MEDIUM for exact Gameday coordinate constants (home-plate origin, scale) — these should be validated empirically with one known HR in Phase 1.
+**Researched:** 2026-04-16
+**Milestone focus:** Multi-season selector + Streamlit Community Cloud deployment
+**Confidence:** HIGH for API season threading and caching strategy; HIGH for Cloud deployment requirements; MEDIUM for src-layout deployment workaround (community-confirmed, not official docs)
 
-## Standard Architecture
+---
 
-### System Overview
+## Starting Point: What v1.0 Built
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     Streamlit app.py (UI)                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐   │
-│  │ Team select │→ │Player select│→ │ Stadium select      │   │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘   │
-│             │             │                   │              │
-│             ▼             ▼                   ▼              │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │          controller.build_view(team, player, venue)  │    │
-│  └──────────────────────────────────────────────────────┘    │
-├──────────────────────────────────────────────────────────────┤
-│                      Service layer                           │
-│  ┌────────────────┐  ┌──────────────┐  ┌───────────────┐     │
-│  │ hr_pipeline.py │  │ park_model.py│  │ plotting.py   │     │
-│  │ (orchestrate)  │  │ (geometry)   │  │ (mpl/plotly)  │     │
-│  └───────┬────────┘  └──────┬───────┘  └───────┬───────┘     │
-├──────────┼──────────────────┼──────────────────┼─────────────┤
-│          ▼                  ▼                  ▼             │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │             mlb_api.py  (HTTP + st.cache_data)      │     │
-│  │   teams | roster | gameLog | game_feed | venue      │     │
-│  └─────────────────────────────────────────────────────┘     │
-├──────────────────────────────────────────────────────────────┤
-│                 statsapi.mlb.com/api/v1                      │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-| Component | Owns | Does NOT own |
-|-----------|------|--------------|
-| `app.py` | Streamlit layout, selectors, session state, calling controller | Any HTTP, any math |
-| `controller.py` | Orchestrates: given (team, player, venue) return a `ViewModel` for rendering | HTTP details, plotting primitives |
-| `mlb_api.py` | All HTTP. One function per endpoint. All `@st.cache_data` decorators live here. Returns raw dicts or thin typed models | Business logic, filtering, math |
-| `hr_pipeline.py` | Player → list of `HREvent` objects (one per HR with hitData) | HTTP, plotting |
-| `park_model.py` | Venue geometry: `Park` dataclass, `fence_distance_at_angle(angle)`, `clears_fence(distance, angle, park)` | Fetching, plotting |
-| `plotting.py` | Draws stadium outline + HR dots on a figure from `Park` + `List[HREvent]` | Fetching, verdict computation |
-| `models.py` | Dataclasses: `Team`, `Player`, `Park`, `HREvent`, `ClearVerdict`, `ViewModel` | Behavior |
-| `config.py` | Base URL, timeouts, cache TTLs, coordinate constants | — |
-
-**Rule:** Imports flow downward only. `plotting` does not import `mlb_api`. `park_model` has no I/O. `mlb_api` knows nothing about HRs.
-
-## Recommended Project Structure
+The existing architecture is:
 
 ```
-streamlit_mlb_hr/
-├── app.py                    # Streamlit entrypoint, selectors, layout
-├── controller.py             # build_view(team_id, player_id, venue_id) -> ViewModel
-├── services/
-│   ├── __init__.py
-│   ├── mlb_api.py            # HTTP + caching (only module that touches requests)
-│   ├── hr_pipeline.py        # gameLog -> HR games -> feed -> HREvent[]
-│   ├── park_model.py         # Park geometry, fence interpolation, verdict
-│   └── plotting.py           # Matplotlib/Plotly rendering
-├── models.py                 # Dataclasses
-├── config.py                 # Constants (base URL, TTLs, coord origin)
-├── data/
-│   └── venues_cache.json     # Optional on-disk seed of 30 venues (see below)
-├── tests/
-│   ├── test_park_model.py    # Pure-function geometry tests (no network)
-│   ├── test_hr_pipeline.py   # With mocked mlb_api
-│   └── fixtures/             # Saved JSON from real API calls
-├── requirements.txt
-└── README.md
+app.py
+  → controller.build_view(team_id, player_id, venue_id, season=None)
+      → mlb_api.get_team_hitting_stats(team_id, season)   [cached 1h]
+      → extract_hrs(player_id, season, api)
+          → mlb_api.get_game_log(player_id, season)        [cached 1h]
+          → mlb_api.get_game_feed(game_pk)                 [cached 7d]
+      → compute_verdict_matrix(...)
+  → chart.build_figure(view, park)
 ```
 
-### Structure Rationale
+Season is already threaded as a parameter through `controller.build_view`, `extract_hrs`, `get_game_log`, and `get_team_hitting_stats`. The `season` arg flows all the way down to the API layer, where it is part of the `@st.cache_data` cache key (Streamlit hashes all positional + keyword args).
 
-- **Flat-ish over deeply nested.** 8–10 files total; a hobby app doesn't need `src/domain/entities/`.
-- **`services/` folder** isolates the three pure-logic modules (pipeline, geometry, plotting) from UI and I/O.
-- **Single HTTP module** is the only place `requests` is imported and the only place `@st.cache_data` appears — makes cache behavior auditable in one file.
-- **`models.py` at root** because every layer uses them; avoiding an import cycle via a neutral location.
-- **`tests/fixtures/`** with real recorded JSON is worth the disk space — the StatsAPI is unofficial and undocumented, so schema regressions are the main risk.
+The only place `season` is hardcoded is `app.py`, which imports `CURRENT_SEASON` from `config.py` and passes it directly to `get_team_hitting_stats(team_id, CURRENT_SEASON)`. The controller default also falls back to `CURRENT_SEASON` when `season=None`.
 
-## Architectural Patterns
+---
 
-### Pattern 1: Cached HTTP Wrappers (one per endpoint)
+## Multi-Season Support
 
-**What:** Each StatsAPI endpoint gets one top-level function in `mlb_api.py` decorated with `@st.cache_data(ttl=...)`. Never call `requests.get` outside this module.
+### What needs to change
 
-**Why:** `st.cache_data` keys on function args and pickles the return value. Keeping one function per endpoint makes the cache key obvious and the TTL explicit.
+**Season selector in `app.py`** — one new `st.selectbox` (or `st.radio` for 5 options) before the Team selector, bound to `st.session_state["season"]`. Season change must null out `player_id` and `venue_id` (same cascade as team change).
 
-**Example:**
+**`app.py` passes `season` down** — replace the two hardcoded `CURRENT_SEASON` references:
+- Line 79: `get_team_hitting_stats(team_id, CURRENT_SEASON)` → `get_team_hitting_stats(team_id, season)`
+- Line `controller.build_view(team_id, player_id, venue_id)` call → add `season=season`
+
+**No changes needed in the service layer.** `get_game_log`, `get_team_hitting_stats`, `get_game_feed`, and `extract_hrs` already accept `season` as a parameter, and `@st.cache_data` already keys on it. The pipeline is fully parametric.
+
+**`config.py` change** — `CURRENT_SEASON = 2026` stays as the default fallback. No change required, but add a `AVAILABLE_SEASONS` list (e.g., `list(range(2022, CURRENT_SEASON + 1))`) to drive the selectbox options. This is the single source of truth for which seasons are available.
+
+### Cascade behavior with season change
+
+When the user changes the season, the player selector must reset. A player active in 2024 may not have been on the same team roster in 2022. The selector cascade is:
+
+```
+Season changes → null player_id, null venue_id
+Team changes   → null player_id, null venue_id   (unchanged)
+Player changes → set venue_id to home park       (unchanged)
+```
+
+A `_on_season_change` callback mirrors `_on_team_change`.
+
+### Session state key addition
+
+Add `"season"` to the session-state keys. The selectbox `key="season"` bound pattern matches how `team_id`, `player_id`, and `venue_id` already work.
+
+### Historical roster endpoint
+
+The `/teams/{team_id}/roster?rosterType=active&hydrate=person(stats(...))` call already passes `season` to the hydrate clause. For past seasons this returns whoever was on the active roster at the end of that season (or at season close). MEDIUM confidence — community-confirmed the `season` param works on roster/gameLog endpoints for past seasons; no official MLB API docs. Fixture-test against one past season before shipping.
+
+---
+
+## Caching Strategy: Historical vs. Current Season
+
+This is the most important architectural decision for multi-season.
+
+### Rule: completed season feeds are immutable forever
+
+A game played in 2022 will never change. `get_game_feed(game_pk)` currently has `TTL_FEED = "7d"`. For historical seasons every game feed is already final — 7 days is undershooting; `"365d"` or even no TTL would be correct. However:
+
+- `@st.cache_data` has an in-memory lifetime bounded by the process. On Streamlit Cloud, the process restarts when the app sleeps (idle timeout) or redeploys. The in-memory cache is gone either way.
+- For a hobby app without a disk-backed HTTP cache, the practical impact is: every cold start re-fetches all game feeds for whichever player was viewed last session. This is the same as today.
+
+**Recommendation:** Raise `TTL_FEED` to `"30d"` (from `"7d"`). This is safe because: (a) completed feeds are immutable, (b) current-season feeds finalize within hours of game end, (c) a 30-day in-memory TTL is effectively "forever" for a single-process Streamlit app.
+
+### Rule: historical game logs are also immutable
+
+`TTL_GAMELOG = "1h"` made sense for the current season. For a completed season, the game log for a player never changes. A simple improvement: if `season < CURRENT_SEASON`, use a longer TTL. However, `@st.cache_data` TTL is set at decoration time (it's a decorator argument, not a runtime argument), so you cannot vary TTL by argument value with a single decorated function.
+
+**Two clean options:**
+
+Option A — Two functions, separate TTLs:
 
 ```python
-# services/mlb_api.py
-import requests, streamlit as st
-from config import BASE_URL, TTL_VENUE, TTL_ROSTER, TTL_GAMELOG, TTL_FEED
+@st.cache_data(ttl="1h", show_spinner=False)
+def get_game_log_current(person_id: int, season: int) -> list[dict]:
+    return _raw_game_log(person_id, season)
 
-@st.cache_data(ttl=TTL_VENUE, show_spinner=False)   # 24h — venues rarely change
-def get_venue(venue_id: int) -> dict:
-    r = requests.get(f"{BASE_URL}/venues/{venue_id}",
-                     params={"hydrate": "fieldInfo"}, timeout=10)
-    r.raise_for_status()
-    return r.json()["venues"][0]
-
-@st.cache_data(ttl=TTL_TEAMS)       # 24h
-def get_teams() -> list[dict]: ...
-
-@st.cache_data(ttl=TTL_ROSTER)      # 6h
-def get_roster(team_id: int) -> list[dict]: ...
-
-@st.cache_data(ttl=TTL_GAMELOG)     # 1h — updates as season progresses
-def get_game_log(player_id: int, season: int) -> list[dict]: ...
-
-@st.cache_data(ttl=TTL_FEED)        # 7d — a completed game's feed is immutable
-def get_game_feed(game_pk: int) -> dict: ...
+@st.cache_data(ttl="30d", show_spinner=False)
+def get_game_log_historical(person_id: int, season: int) -> list[dict]:
+    return _raw_game_log(person_id, season)
 ```
 
-**Trade-off:** `st.cache_data` is per-Streamlit-session-process; if the app restarts, cache is cold. For venues we add a thin on-disk fallback (see Pattern 3).
+A dispatcher in `extract_hrs` or `mlb_api.py` chooses which to call based on whether `season == CURRENT_SEASON`.
 
-### Pattern 2: Pipeline as a Pure Function with Injected Client
+Option B — Single function, runtime TTL hint via a boolean flag (not supported by `@st.cache_data` — TTL is fixed at decoration time).
 
-**What:** `hr_pipeline.extract_hrs(player_id, season, api=mlb_api)` takes the api module as a dependency. Testable by passing a stub module in tests.
+Option C — Accept the current 1h TTL for all seasons. For a hobby app with ~5 users, re-fetching a 2022 game log once per hour costs one HTTP call and is negligible. The caching architecture is correct; the TTL is merely suboptimal.
 
-**Example:**
+**Recommended for v1.1: Option C (accept 1h for all seasons).** Rationale: the app is not under load. Option A adds two functions to maintain and a dispatch branch, which is overhead disproportionate to the benefit. Revisit if Streamlit Cloud shows slow cold starts due to rate-limiting on historical season fetches.
 
+### Venues: no change needed
+
+Park dimensions don't vary by season. `load_all_parks()` and the disk-backed `venues_cache.json` are season-agnostic. No change required.
+
+### Summary: caching changes for v1.1
+
+| Change | Required? | Recommendation |
+|--------|-----------|---------------|
+| `TTL_FEED` 7d → 30d | No, but beneficial | YES — raise it |
+| Separate TTL for historical game logs | No | Defer to v1.2+ |
+| Venues cache season-parameterize | No | Unchanged |
+| Team cache | No | Unchanged |
+
+---
+
+## Data Flow Change: Season as First Selector
+
+Current flow (v1.0):
+```
+[Team] → [Player] → [Stadium] → build_view(team, player, venue, season=CURRENT_SEASON)
+```
+
+New flow (v1.1):
+```
+[Season] → [Team] → [Player] → [Stadium] → build_view(team, player, venue, season=selected_season)
+```
+
+Season is read from `st.session_state["season"]` immediately after it is rendered, before any downstream fetches. The season value gates all subsequent selectors (same lazy-fetch pattern already in place for team/player/venue).
+
+No new modules are required. No geometry or chart changes. No changes to `controller.py` or `extract_hrs`.
+
+---
+
+## Streamlit Community Cloud Deployment
+
+### Required files
+
+| File | Status | Notes |
+|------|--------|-------|
+| `requirements.txt` | EXISTS at repo root | Must NOT include pytest in production; separate dev deps |
+| `.streamlit/config.toml` | MISSING — create | Theme, server settings |
+| `README.md` | MISSING — create | Required for shareable app context |
+| `.streamlit/secrets.toml` | LOCAL ONLY — never commit | Not needed for this app (no secrets) |
+
+### The src layout problem
+
+The project uses a src layout: `src/mlb_park/` is the package, `pyproject.toml` declares it, and locally it is installed via `pip install -e .`. Streamlit Community Cloud runs `streamlit run` from the repo root. The Cloud environment will NOT automatically do `pip install -e .` unless told to.
+
+**Two confirmed-working options:**
+
+Option A — Add `-e .` to `requirements.txt`:
+```
+streamlit>=1.55,<2.0
+requests>=2.32,<3.0
+plotly>=6.7,<7.0
+pandas>=2.2,<3.0
+-e .
+```
+Community Cloud processes `requirements.txt` with uv (falling back to pip), and `-e .` triggers editable install of the `mlb_park` package from `src/`. This is the cleanest approach because it doesn't modify application code.
+
+Option B — Add `sys.path` manipulation to `app.py`:
 ```python
-# services/hr_pipeline.py
-def extract_hrs(player_id: int, season: int, api=mlb_api) -> list[HREvent]:
-    log = api.get_game_log(player_id, season)
-    # Filter to games with homeRuns >= 1 from the gameLog stat line
-    hr_games = [g for g in log if g["stat"]["homeRuns"] >= 1]
-    events = []
-    for g in hr_games:
-        feed = api.get_game_feed(g["game"]["gamePk"])
-        events.extend(_hrs_for_batter(feed, player_id))
-    return events
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src"))
+```
+Community forum confirmed this works but is fragile — it hard-codes a path assumption and runs on every Streamlit rerun. Not recommended if Option A works.
 
-def _hrs_for_batter(feed: dict, batter_id: int) -> list[HREvent]:
-    plays = feed["liveData"]["plays"]["allPlays"]
-    out = []
-    for p in plays:
-        if p["result"]["eventType"] != "home_run": continue
-        if p["matchup"]["batter"]["id"] != batter_id: continue
-        hd = p.get("hitData") or {}
-        coords = hd.get("coordinates") or {}
-        if "coordX" not in coords or "totalDistance" not in hd:
-            continue  # skip; see error boundaries
-        out.append(HREvent(
-            game_pk=feed["gamePk"], play_id=p["about"]["atBatIndex"],
-            date=p["about"]["startTime"][:10],
-            distance=float(hd["totalDistance"]),
-            launch_speed=hd.get("launchSpeed"),
-            launch_angle=hd.get("launchAngle"),
-            coord_x=float(coords["coordX"]),
-            coord_y=float(coords["coordY"]),
-            venue_id=feed["gameData"]["venue"]["id"],
-        ))
-    return out
+**Recommended: Option A (`-e .` in requirements.txt).** Remove `pytest` from `requirements.txt` (it is a dev dep; Cloud doesn't need it). The `pyproject.toml` already correctly declares the package. Cloud's uv/pip invocation will install it.
+
+Revised `requirements.txt` for Cloud:
+```
+streamlit>=1.55,<2.0
+requests>=2.32,<3.0
+plotly>=6.7,<7.0
+pandas>=2.2,<3.0
+-e .
 ```
 
-**Trade-off:** Passing the module as a param is slightly un-Pythonic but beats monkey-patching in tests.
+### `.streamlit/config.toml`
 
-### Pattern 3: Eager-Once Venue Load with Disk Fallback
+Minimal config needed for Cloud. The file must be at `.streamlit/config.toml` in the repo root (not inside `src/`):
 
-**What:** On first run of the app, fetch all 30 venues and persist to `data/venues_cache.json`. On subsequent cold starts, read from disk and only re-fetch if file missing or stale (>30 days).
+```toml
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
 
-**Why:** Venues rarely change (dimension changes happen a few times per decade). `st.cache_data` alone re-fetches on every app process restart; disk cache eliminates that. 30 venues × one call each is cheap but pointless to repeat.
+[browser]
+gatherUsageStats = false
 
-```python
-# services/mlb_api.py
-VENUES_FILE = Path("data/venues_cache.json")
-VENUES_STALE_DAYS = 30
-
-def load_all_parks() -> dict[int, Park]:
-    if VENUES_FILE.exists() and _age_days(VENUES_FILE) < VENUES_STALE_DAYS:
-        raw = json.loads(VENUES_FILE.read_text())
-    else:
-        team_venues = {t["venue"]["id"] for t in get_teams()}
-        raw = {vid: get_venue(vid) for vid in team_venues}
-        VENUES_FILE.parent.mkdir(exist_ok=True)
-        VENUES_FILE.write_text(json.dumps(raw))
-    return {int(vid): Park.from_api(v) for vid, v in raw.items()}
+[theme]
+# optional: set base theme
+base = "light"
 ```
 
-Call `load_all_parks()` once at app start and stash in `st.session_state["parks"]`.
+Community Cloud reads this file automatically. `headless = true` suppresses the "Open in browser" behavior that makes no sense in Cloud.
 
-### Pattern 4: Geometry as Pure Functions on a `Park` Dataclass
+### Python version
 
-**What:** Park dimensions are parsed once into a `Park` with six (angle, distance) fence samples plus foul-line angles. A pure function `fence_distance_at(park, angle_deg) -> feet` does the interpolation.
+Community Cloud uses Python 3.12 by default (as of early 2026). This project targets Python 3.12. No explicit version pin needed in the UI. If the Cloud default ever shifts, add a `.python-version` file containing `3.12` at the repo root — uv reads this natively.
 
-**See "Geometry Approach" section below for full detail.**
+### Secrets
 
-### Pattern 5: ViewModel Between Controller and UI
+This app makes no authenticated API calls (MLB StatsAPI is public, no key). No secrets management needed for v1.1. The `.streamlit/secrets.toml` mechanism exists but is unused here.
 
-**What:** `controller.build_view()` returns one `ViewModel` dataclass containing everything the UI needs: list of HRs with per-park verdicts, summary stats, and the `Park` for plotting. UI does no computation.
+### Data directory and venues cache on Cloud
 
-```python
-@dataclass
-class ViewModel:
-    player_name: str
-    stadium: Park
-    hrs: list[HRWithVerdicts]  # each has list of 30 bool verdicts + selected-stadium bool
-    summary: Summary           # total, avg_parks_cleared, no_doubters, cheapies
-```
+`data/venues_cache.json` is the disk-backed venue cache. It is gitignored. On Community Cloud:
+- The filesystem is ephemeral — the cache does not persist between deploys or app sleeps.
+- On every cold start, `load_all_parks()` will miss the disk cache and make ~30 venue API calls.
+- This is acceptable for a hobby app. The `@st.cache_data(ttl="24h")` on `get_venue` still helps within a session.
 
-**Why:** Keeps `app.py` declarative — just layout and bindings.
+**Do NOT commit `data/venues_cache.json` to the repo.** The current `.gitignore` already excludes `data/`. Keep it that way.
 
-## Data Flow
+If cold-start venue fetching becomes a problem: bundle a snapshot `data/venues_cache.json` committed to the repo (rename it to something like `data/venues_seed.json` so it is not gitignored), and update `load_all_parks()` to fall back to the bundled seed when no runtime cache exists.
 
-### Selector-Driven Flow
+### Entrypoint path
 
-```
-User picks Team
-    ↓
-app.py reads team_id from selectbox
-    ↓
-mlb_api.get_roster(team_id)              [cached 6h]
-    ↓
-Player selectbox populates
-    ↓
-User picks Player
-    ↓
-User picks Stadium  (from already-loaded parks dict)
-    ↓
-controller.build_view(team_id, player_id, venue_id)
-    │
-    ├─ parks = st.session_state["parks"]                   (loaded once at startup)
-    ├─ hrs   = hr_pipeline.extract_hrs(player_id, season)
-    │            ├─ api.get_game_log(player_id)            [cached 1h]
-    │            └─ for each HR game:
-    │                  api.get_game_feed(game_pk)          [cached 7d — game done]
-    ├─ verdicts = [park_model.clears_all_parks(hr, parks) for hr in hrs]
-    └─ return ViewModel(...)
-    ↓
-app.py renders:
-    - plotting.draw_field(selected_park, hrs_with_verdicts)
-    - summary card, HR table
-```
+Community Cloud requires specifying the entrypoint file path during deployment. The entrypoint is `src/mlb_park/app.py`. When prompted during Cloud app creation, enter this path. Community Cloud runs `streamlit run src/mlb_park/app.py` from the repo root.
 
-### Cache Hierarchy (what lives where, TTL)
+---
 
-| Layer | Key | TTL | Rationale |
-|-------|-----|-----|-----------|
-| Disk (`venues_cache.json`) | all 30 venues | 30 days | Dimensions rarely change; survives app restarts |
-| `@st.cache_data` on `get_teams` | — | 24h | Teams stable within a season |
-| `@st.cache_data` on `get_roster` | team_id | 6h | Roster moves happen daily-ish |
-| `@st.cache_data` on `get_game_log` | player_id, season | 1h | Updates nightly during season |
-| `@st.cache_data` on `get_game_feed` | game_pk | 7d | A completed game's feed is immutable |
-| `@st.cache_data` on `get_venue` | venue_id | 24h | Fallback when disk miss |
-| `st.session_state["parks"]` | — | session | Parsed `Park` objects (avoid re-parsing) |
+## New vs. Modified Components
 
-### Call Budget for One Player View
+### Modified (touch existing files)
 
-Assume a 30-HR hitter spread across ~28 games:
+| File | Change |
+|------|--------|
+| `src/mlb_park/app.py` | Add season selectbox, `_on_season_change` callback, thread `season` to `get_team_hitting_stats` and `build_view` |
+| `src/mlb_park/config.py` | Add `AVAILABLE_SEASONS = list(range(2022, CURRENT_SEASON + 1))` |
+| `requirements.txt` | Remove `pytest`, add `-e .` |
 
-- 1 `get_teams` (cold) or 0 (warm)
-- 1 `get_roster(team)` per team selection
-- 1 `get_game_log(player, season)`
-- ~28 `get_game_feed(game_pk)` on first view of this player
-- 0 venue calls (loaded at startup)
+### New files (create)
 
-Total: ~30 calls first time for a given player, **0 calls on any re-render** while caches are warm. Subsequent player re-selects are cheap because game feeds are cached by `game_pk` — overlap between players on same team is common.
+| File | Purpose |
+|------|---------|
+| `.streamlit/config.toml` | Cloud server settings, optional theme |
+| `README.md` | App description, shareable context for the Cloud URL |
 
-## Geometry Approach
+### Unchanged
 
-This is the core technical risk. Specification below is detailed enough to implement.
+Everything else: `controller.py`, `mlb_api.py`, `extract_hrs`, geometry modules, `chart.py`, all tests. The service layer already accepts `season` as a parameter.
 
-### Coordinate System (Gameday `hitData.coordinates`)
-
-Based on widely-reported community findings (MLB doesn't document this):
-
-- Origin approx `(x0, y0) = (125.0, 199.0)` pixels — home plate
-- Y axis points **down the image** (i.e., a ball hit to center field has `coordY < 199`)
-- Units: scaled pixels. The community constant is `2.29` feet per unit (sometimes reported as `2.495`); **calibrate in Phase 1** by finding a known 400 ft center-field HR and back-solving.
-
-Given `(coordX, coordY)`:
-
-```python
-dx = coord_x - X0            # east-west (+ = toward RF)
-dy = Y0 - coord_y            # north-south (+ = toward outfield); note the flip
-distance_units = sqrt(dx*dx + dy*dy)
-distance_ft    = distance_units * FT_PER_UNIT   # sanity-check vs hitData.totalDistance
-spray_deg      = degrees(atan2(dx, dy))         # 0 = straight CF, -45 = LF line, +45 = RF line
-```
-
-**Convention used throughout the app:** spray angle in degrees, `-45` = LF line, `0` = dead center, `+45` = RF line. We use this angle — not `hitData.coordinates` directly — for fence lookups, so the angle is park-agnostic.
-
-We prefer `hitData.totalDistance` (authoritative, the ball's actual projected distance) over distance derived from `coordX/Y`. Coords are used only for the angle.
-
-### Park Fence Model
-
-`fieldInfo` provides six dimensions (feet): `leftLine, left, leftCenter, center, rightCenter, right, rightLine`. Map to fixed angles:
-
-| Field point | Angle (deg) |
-|-------------|-------------|
-| Left-field line | -45 |
-| Left-field power alley | -30 |
-| Left-center | -22.5 |
-| Center | 0 |
-| Right-center | +22.5 |
-| Right-field power alley | +30 |
-| Right-field line | +45 |
-
-(Some venues expose 6 points, some 7 — handle both by building from whatever keys are present. Missing keys: fall back by linear interp between neighbors.)
-
-### Interpolation: Linear in (angle, distance)
-
-**Recommendation: piecewise linear interpolation.** Reasons:
-
-1. Only 6–7 samples spanning 90°. Cubic spline over sparse samples tends to overshoot (oscillation near the line/alley), producing false "clears" near foul poles.
-2. Real outfield walls are piecewise-straight segments (quirks like the Crawford Boxes aside), so linear is actually more physically faithful than a smooth curve.
-3. Trivial to implement; no scipy dependency.
-
-```python
-# services/park_model.py
-from bisect import bisect_left
-
-@dataclass(frozen=True)
-class Park:
-    venue_id: int
-    name: str
-    angles: tuple[float, ...]     # sorted ascending, e.g. (-45, -30, -22.5, 0, 22.5, 30, 45)
-    fences: tuple[float, ...]     # feet, parallel to angles
-    # optional: elevation, roof
-
-def fence_distance_at(park: Park, angle_deg: float) -> float:
-    a = park.angles; d = park.fences
-    if angle_deg <= a[0]:  return d[0]
-    if angle_deg >= a[-1]: return d[-1]
-    i = bisect_left(a, angle_deg)
-    t = (angle_deg - a[i-1]) / (a[i] - a[i-1])
-    return d[i-1] * (1 - t) + d[i] * t
-
-def clears_fence(hr_distance_ft: float, spray_deg: float, park: Park) -> bool:
-    return hr_distance_ft >= fence_distance_at(park, spray_deg)
-```
-
-**Foul filter:** before scoring, clamp/reject `|spray_deg| > 45` (foul territory — shouldn't happen for a HR but defensive).
-
-### Stadium Outline Rendering
-
-The six fence points plus home plate form a closed polygon — good enough for v1 and matches what fans recognize as a "ballpark outline."
-
-```python
-# services/plotting.py
-def field_polygon(park: Park, n_per_segment: int = 1) -> np.ndarray:
-    """Return (N, 2) array of (x_ft, y_ft) points: home -> LF line -> ... -> RF line -> home."""
-    pts = [(0.0, 0.0)]  # home plate
-    for ang, dist in zip(park.angles, park.fences):
-        rad = math.radians(ang)
-        pts.append((dist * math.sin(rad), dist * math.cos(rad)))  # +y = CF, +x = RF
-    pts.append((0.0, 0.0))
-    return np.array(pts)
-
-def draw_field(park: Park, hrs: list[HRWithVerdict]) -> Figure:
-    fig, ax = plt.subplots(figsize=(7, 7))
-    poly = field_polygon(park)
-    ax.fill(poly[:,0], poly[:,1], alpha=0.08)
-    ax.plot(poly[:,0], poly[:,1], linewidth=2)               # outfield wall
-    # foul lines: home to LF-line and RF-line fence points
-    ax.plot([0, poly[1,0]], [0, poly[1,1]], '--', alpha=0.5)
-    ax.plot([0, poly[-2,0]], [0, poly[-2,1]], '--', alpha=0.5)
-    for hr in hrs:
-        rad = math.radians(hr.spray_deg)
-        x = hr.distance * math.sin(rad)
-        y = hr.distance * math.cos(rad)
-        ax.scatter(x, y, c='green' if hr.clears_here else 'red', s=40, edgecolors='black')
-    ax.set_aspect('equal'); ax.set_xlim(-400, 400); ax.set_ylim(-50, 500)
-    ax.set_title(park.name)
-    return fig
-```
-
-**Matplotlib vs Plotly:** Matplotlib is the right default — static, simple, cheap, and the hover interactivity Plotly adds isn't essential for 30–40 dots. Start matplotlib; swap to Plotly later only if hover tooltips (e.g., date + exit velo on hover) become a must-have.
-
-## Error Boundaries
-
-Explicit behavior for each failure mode:
-
-| Scenario | Handling |
-|----------|----------|
-| API slow / timeout | `requests` with `timeout=10`; wrap each cached function and on `requests.exceptions.RequestException` re-raise as `MLBAPIError`. Controller catches and returns `ViewModel.error("…")`. UI shows `st.error()` with a retry button that calls `st.cache_data.clear()` on the offending function. |
-| Player has 0 HRs | `hr_pipeline.extract_hrs` returns `[]`. UI shows an informational card ("No HRs yet this season") and skips the plot. |
-| `hitData` missing on a play | Skip the play with a `logging.warning(play_id)`. Add to an "excluded" counter surfaced in a small debug expander ("2 HRs excluded: missing hitData"). Don't crash. |
-| `fieldInfo` absent on a venue | Park is "incomplete." `load_all_parks` logs a warning and excludes that park from the "parks cleared" denominator (show "cleared 17 of 28 parks with known dims"). Selecting that park for the outline shows an `st.warning` and a fallback generic diamond. |
-| Coord calibration sanity fail | At app startup, pick the most recent HR with `totalDistance` in the cache and check that distance-from-coords is within 10% of `totalDistance`. If not, log a calibration warning. Don't crash — `totalDistance` is the authoritative input anyway. |
-| HTTPS 5xx from MLB | Retry once after 1s with jitter (inside `mlb_api`), then raise. |
-| Non-current season in `get_game_log` | Not supported in v1 per PROJECT scope; controller enforces `season = current_year`. |
+---
 
 ## Build Order
 
-Phases match the expected roadmap phases; each is testable in isolation.
+1. **Update `config.py`** — add `AVAILABLE_SEASONS`. No deps. Testable with a one-liner assert.
 
-1. **Phase 1 — API + fixtures.** `mlb_api.py` with the 5 endpoint functions + cache decorators. Write `tests/fixtures/` by saving real JSON for one team, one player, a few games, a few venues. No UI yet; verify via a scratch script.
-2. **Phase 2 — Geometry.** `models.py` + `park_model.py`. Pure-function, 100% unit-tested. No network. Calibrate coord-to-feet against a recorded HR's `totalDistance`.
-3. **Phase 3 — HR pipeline.** `hr_pipeline.py` over cached fixtures. End-to-end "player_id → HREvent[]" green before touching Streamlit.
-4. **Phase 4 — Controller + minimal UI.** `controller.build_view` + `app.py` with the three selectors and a JSON dump of the ViewModel. Confirm the pipeline drives the UI.
-5. **Phase 5 — Plotting.** `plotting.draw_field`. Single stadium, one player.
-6. **Phase 6 — Summary + per-HR table + polish.** Add summary card, HR detail table, error-boundary UX, disk venue cache.
-7. **Phase 7 — (optional) Plotly swap**, wall-height TODO, caching knobs.
+2. **Update `app.py`** — add season selector and cascade callback. Thread `season` through `get_team_hitting_stats` and `build_view` calls. Run locally, verify selectors cascade correctly for at least two different seasons.
 
-## Anti-Patterns
+3. **Raise `TTL_FEED`** in `config.py` from `"7d"` to `"30d"`. One-line change, no risk.
 
-### Anti-Pattern 1: Plotting module calls the API
+4. **Fixture-test one past season** — pick a known player (e.g., Aaron Judge 2024), run `extract_hrs(judge_id, 2024)` in a scratch script, confirm the game log and feed fetch succeed and HR counts match Baseball Reference. This is the highest-risk step (undocumented API behavior for historical seasons).
 
-**What people do:** Convenience function `plot_player_hrs(player_id, venue_id)` that fetches inside.
-**Why wrong:** Ties rendering to network latency; defeats `st.session_state` caching; untestable without mocks.
-**Instead:** Plotting takes fully-resolved `Park` + `HREvent[]`. Fetching is the controller's job.
+5. **Prep deployment files** — create `.streamlit/config.toml`, create `README.md`, update `requirements.txt`.
 
-### Anti-Pattern 2: Fetching all 162 games per team
+6. **Deploy to Community Cloud** — push to GitHub, connect repo, specify entrypoint `src/mlb_park/app.py`, deploy. Verify cold start, venue fetch, season selector, and spray chart render.
 
-**What people do:** Iterate the team schedule and pull every game feed.
-**Why wrong:** ~162 calls per player when ~28 will do; pointless load on an unofficial API.
-**Instead:** gameLog is a per-player stat with `homeRuns` per game — filter to `homeRuns > 0` first, *then* fetch feeds only for those games.
+---
 
-### Anti-Pattern 3: Cubic spline for fence interpolation
+## Pitfalls Specific to This Milestone
 
-**What people do:** `scipy.interpolate.CubicSpline(angles, fences)` because it looks smooth.
-**Why wrong:** Oscillation/overshoot near LF/RF lines produces phantom "cleared the fence" verdicts at -44°. Real walls are piecewise-linear anyway.
-**Instead:** Piecewise linear (see geometry section).
+### Historical roster may return empty for past seasons
 
-### Anti-Pattern 4: Global `requests.Session` without timeout
+`/teams/{team_id}/roster?rosterType=active&hydrate=person(stats(...,season=2022,...))` may return an empty list or a different shape for seasons where the `active` roster type has no data. The current `controller.py` raises `ValueError` if `player_id` is not found in the roster response. For past seasons, you may need to use `rosterType=fullRoster` or handle the empty-roster case gracefully.
 
-**What people do:** `requests.get(url)` with no timeout.
-**Why wrong:** A single stalled request hangs the whole Streamlit rerun.
-**Instead:** `timeout=(3, 10)` (connect, read) on every call, centralized in `mlb_api._get()`.
+Mitigation: in the season-fixture test (step 4 above), verify the roster endpoint for a past season before building the selector UI.
 
-### Anti-Pattern 5: Caching the whole ViewModel
+### Disk cache is ephemeral on Cloud
 
-**What people do:** `@st.cache_data` on `controller.build_view`.
-**Why wrong:** Its inputs are cheap IDs but the cache entry is fat (30 HRs × 30 parks of verdicts); cache invalidation becomes coarse — change one thing and you rebuild everything.
-**Instead:** Cache at the HTTP layer only. The controller is fast when HTTP is warm.
+`venues_cache.json` starts fresh on every Cloud cold start. 30 venue calls on cold start is fine under hobby load but worth knowing. If MLB API is briefly unavailable during a cold start, the app will show an error. The existing retry-and-raise logic in `_get()` handles this.
 
-### Anti-Pattern 6: Storing raw JSON in session_state
+### `.streamlit/` is gitignored
 
-**What people do:** `st.session_state["feed"] = feed_json` for every game.
-**Why wrong:** Memory bloat; duplicates the cache; re-serialized per session.
-**Instead:** Keep only parsed `Park` dict and the current `ViewModel` in session state. Let `@st.cache_data` own the raw JSON.
+The current `.gitignore` has `.streamlit/` listed. This will prevent committing `.streamlit/config.toml`. Remove `.streamlit/` from `.gitignore` (or add an exception: `!.streamlit/config.toml`) before the deployment commit. `secrets.toml` must remain gitignored — be precise.
 
-## Scaling Considerations
+Gitignore fix:
+```gitignore
+# Streamlit
+.streamlit/secrets.toml
+# (removed the blanket .streamlit/ exclusion)
+```
 
-This is a single-user local app; scaling is not a concern. Two dimensions worth noting:
+### Season selector position: before or after Team?
 
-| Dimension | At hobby scale | If ever shared |
-|-----------|---------------|----------------|
-| API calls | ~30 cold per player, 0 warm | Add a disk-backed HTTP cache (e.g., `requests-cache`) so feeds persist across restarts |
-| Compute | Trivial; 30 HRs × 30 parks = 900 verdicts | Still trivial |
+Season should be the first selector. Team rosters and player HR counts are season-specific — showing a 2022 roster when the user selected "current 2026 season" would be confusing. Season → Team → Player → Stadium is the correct cascade order.
 
-## Integration Points
+### `get_team_hitting_stats` for past seasons with HR sort
 
-### External Services
+The player selector sorts by `homeRuns` from the hydrated roster stats. For past seasons this still works — the `season` parameter is already threaded to the hydrate clause. For completed seasons, a player with 0 HR in that season will appear at the bottom, which is correct behavior.
 
-| Service | Integration | Gotchas |
-|---------|-------------|---------|
-| statsapi.mlb.com | REST, no auth, no published rate limit | Unofficial — schema can change silently. Record fixtures. |
+---
 
-### Internal Boundaries
+## Component Boundary Diagram (updated for v1.1)
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `app.py` → `controller.py` | Direct function call with IDs | Only place UI touches logic |
-| `controller.py` → `services/*` | Direct call | Controller composes pipeline + park_model + plotting |
-| `services/*` → `mlb_api.py` | Only `hr_pipeline` calls it | `park_model` and `plotting` must be I/O-free |
-| Any → `models.py` | Shared dataclasses | No behavior; avoid cycles |
+```
+st.session_state
+  "season"   ← NEW
+  "team_id"
+  "player_id"
+  "venue_id"
+
+app.py (ONLY file that reads session_state)
+  │
+  ├─ season selectbox → st.session_state["season"]  ← NEW
+  ├─ team   selectbox → st.session_state["team_id"]
+  ├─ player selectbox → get_team_hitting_stats(team_id, season)  ← season threaded
+  ├─ venue  selectbox → load_all_parks()             (season-agnostic, unchanged)
+  │
+  └─ controller.build_view(team_id, player_id, venue_id, season=season)  ← season arg added
+       │
+       ├─ get_team_hitting_stats(team_id, season)   [cache: 1h]
+       ├─ extract_hrs(player_id, season, api)
+       │    ├─ get_game_log(player_id, season)      [cache: 1h]
+       │    └─ get_game_feed(game_pk)               [cache: 30d]  ← TTL raised
+       ├─ compute_verdict_matrix(...)               [no network]
+       └─ ViewModel(season=season, ...)
+```
+
+---
 
 ## Sources
 
-- Streamlit docs on `st.cache_data` and `st.session_state` (HIGH — official, stable since 1.18)
-- MLB StatsAPI endpoint shapes as already verified in PROJECT.md (HIGH — user-verified)
-- Gameday coordinate constants (`X0≈125`, `Y0≈199`, `~2.29 ft/unit`): community-reported, not official (MEDIUM — **requires Phase 1 calibration against `totalDistance`**)
-- Piecewise-linear vs cubic for sparse outfield samples: reasoning from geometry, not a citation (MEDIUM — defensible; validate visually by overplotting fences for 2–3 parks)
+- [Streamlit Community Cloud — App dependencies](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies) — HIGH; confirms `requirements.txt` at root or alongside entrypoint; uv/pip fallback.
+- [Streamlit Community Cloud — File organization](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization) — HIGH; confirms `.streamlit/config.toml` must be at repo root; Cloud runs `streamlit run` from repo root.
+- [Streamlit — Src layout for deployment (forum)](https://discuss.streamlit.io/t/src-layout-for-deployment/88617) — MEDIUM; community-confirmed `sys.path` workaround; also establishes that src layout requires explicit action.
+- [Streamlit — uv pyproject.toml on Cloud (forum)](https://discuss.streamlit.io/t/install-dependencies-in-streamlit-cloud-based-on-uv-pyproject-toml/79557) — MEDIUM; confirms `-e .` in requirements.txt workaround for local packages.
+- Existing codebase: `mlb_api.py`, `app.py`, `controller.py`, `config.py` — HIGH (direct inspection); season parameter already threaded through all service-layer functions.
 
 ---
-*Architecture research for: Streamlit MLB HR park-factor viz*
-*Researched: 2026-04-14*
+
+*Architecture research for: MLB HR Park Factor Explorer v1.1 milestone*
+*Researched: 2026-04-16*
