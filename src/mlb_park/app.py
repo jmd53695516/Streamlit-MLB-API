@@ -136,7 +136,18 @@ venue_id = st.session_state.get("venue_id")
 if team_id is None or player_id is None or venue_id is None:
     st.info("Select a team, player, and stadium to begin.")
 else:
-    view = controller.build_view(team_id, player_id, venue_id)
+    try:
+        with st.spinner("Loading player data..."):
+            view = controller.build_view(team_id, player_id, venue_id)
+    except Exception as e:
+        st.error(
+            f"Could not load data. The MLB API may be temporarily unavailable. "
+            f"({type(e).__name__})"
+        )
+        if st.button("Retry"):
+            st.cache_data.clear()
+            st.rerun()
+        st.stop()  # Halt page execution after error -- don't render stale UI
 
     # D-27: error carrier banner with singular/plural noun.
     if view.errors:
@@ -145,6 +156,14 @@ else:
         st.warning(
             f"{n} {noun} failed to fetch; HR data may be incomplete."
         )
+
+    # --- Summary metrics (VIZ-04, D-01) ---
+    if view.plottable_events:
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total HRs", len(view.plottable_events))
+        col2.metric("Avg Parks Cleared", f"{view.totals['avg_parks_cleared']:.1f} / 30")
+        col3.metric("No-Doubters (30/30)", view.totals["no_doubters"])
+        col4.metric("Cheap HRs (\u22645/30)", view.totals["cheap_hrs"])
 
     # --- Spray chart (Phase 5, VIZ-01/02/03) ---
     venue_fieldinfo = parks_map[view.venue_id].get("fieldInfo") or {}
@@ -165,6 +184,27 @@ else:
             chart.build_figure(view, park),
             use_container_width=True,
         )
+
+        # --- Park Rankings (VIZ-05, D-02) ---
+        if view.verdict_matrix is not None:
+            ranking_df = controller.build_park_ranking(view)
+            with st.expander("Park Rankings"):
+                def _highlight_top_bottom(row):
+                    """Highlight top 3 green, bottom 3 red (D-02 tie handling)."""
+                    idx = row.name  # integer index after reset_index
+                    n = len(ranking_df)
+                    # Top 3: first 3 rows (already sorted desc by Clears)
+                    top_cutoff = ranking_df["Clears"].iloc[min(2, n - 1)] if n > 0 else -1
+                    bot_cutoff = ranking_df["Clears"].iloc[max(n - 3, 0)] if n > 0 else -1
+                    clears_val = ranking_df["Clears"].iloc[idx]
+                    if clears_val >= top_cutoff and top_cutoff > bot_cutoff:
+                        return ["background-color: rgba(44, 160, 44, 0.15)"] * len(row)
+                    elif clears_val <= bot_cutoff and top_cutoff > bot_cutoff:
+                        return ["background-color: rgba(214, 39, 40, 0.15)"] * len(row)
+                    return [""] * len(row)
+
+                styled = ranking_df.style.apply(_highlight_top_bottom, axis=1)
+                st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # Plottable dataframe (only when plottable_events non-empty).
     if view.plottable_events:
