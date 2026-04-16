@@ -17,6 +17,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from mlb_park.controller import ViewModel
+from mlb_park.geometry.calibration import CALIB_OX, CALIB_OY, CALIB_S
 from mlb_park.geometry.park import Park
 
 # --- Color palette (D-08) ---
@@ -39,6 +40,18 @@ BASE_MARKER_SIZE_FT = 1.25
 # --- Viewport (D-04 -- fixed across all 30 parks) ---
 X_RANGE = [-450, 450]
 Y_RANGE = [0, 500]
+
+# --- Hover tooltip (D-07, VIZ-03) ---
+# All fields pre-formatted Python-side → no d3-format spec chars in the
+# template (Pitfall 3: object-dtype customdata can misrender :.0f specs).
+HOVERTEMPLATE = (
+    "%{customdata[0]} vs %{customdata[1]}<br>"
+    "Distance: %{customdata[2]} ft<br>"
+    "Exit Velocity: %{customdata[3]} mph<br>"
+    "Launch Angle: %{customdata[4]}°<br>"
+    "Clears %{customdata[5]}/30 parks"
+    "<extra></extra>"
+)
 
 
 def build_figure(view: ViewModel, park: Park) -> go.Figure:
@@ -156,21 +169,59 @@ def _bases_trace() -> go.Scatter:
 
 
 def _hr_scatter_trace(view: ViewModel) -> go.Scatter:
-    """Wave 1 stub -- empty trace named 'hrs'. Wave 3 replaces the body."""
+    """HR scatter -- uniform markers colored by clears_selected_park (VIZ-02, VIZ-03).
+
+    Position: raw (coord_x, coord_y) transformed to feet via CALIB_*. Preserves
+    true bearing (research Coordinate Convention, Option 1) rather than the
+    clamped spray angle the verdict matrix uses for fence interpolation.
+    Colors, however, ride on the verdict (via view.clears_selected_park) -- so
+    an HR at an extreme 47 deg angle plots at its true bearing but its green/red
+    verdict reflects the 45 deg-clamped interpolation. Acceptable v1 trade-off.
+    """
+    if not view.plottable_events:
+        return go.Scatter(
+            x=[], y=[], mode="markers",
+            marker=dict(size=12, opacity=0.7, symbol="circle",
+                        color=[], line=dict(color=BORDER, width=1)),
+            showlegend=False, name="hrs", hoverinfo="skip",
+        )
+
+    events = view.plottable_events
+    xs = [CALIB_S * (ev.coord_x - CALIB_OX) for ev in events]
+    ys = [CALIB_S * (CALIB_OY - ev.coord_y) for ev in events]
+
+    colors = [CLEARS if cleared else DOESNT_CLEAR
+              for cleared in view.clears_selected_park]
+
+    # Pre-format fields to strings (Pitfall 3 defense).
+    n = len(events)
+    customdata = np.empty((n, 6), dtype=object)
+    for i, ev in enumerate(events):
+        cleared_count = int(view.verdict_matrix.cleared[i, :].sum())
+        date_str = (
+            ev.game_date.isoformat()
+            if hasattr(ev.game_date, "isoformat") else str(ev.game_date)
+        )
+        customdata[i, 0] = date_str
+        customdata[i, 1] = str(ev.opponent_abbr)
+        customdata[i, 2] = f"{ev.distance_ft:.0f}"
+        customdata[i, 3] = (
+            f"{ev.launch_speed:.1f}" if ev.launch_speed is not None else "\u2014"
+        )
+        customdata[i, 4] = (
+            f"{ev.launch_angle:.1f}" if ev.launch_angle is not None else "\u2014"
+        )
+        customdata[i, 5] = cleared_count
+
     return go.Scatter(
-        x=[],
-        y=[],
-        mode="markers",
+        x=xs, y=ys, mode="markers",
         marker=dict(
-            size=12,
-            opacity=0.7,
-            symbol="circle",
-            color=[],
-            line=dict(color=BORDER, width=1),
+            size=12, opacity=0.7, symbol="circle",
+            color=colors, line=dict(color=BORDER, width=1),
         ),
-        showlegend=False,
-        name="hrs",
-        hoverinfo="skip",
+        customdata=customdata,
+        hovertemplate=HOVERTEMPLATE,
+        showlegend=False, name="hrs",
     )
 
 
