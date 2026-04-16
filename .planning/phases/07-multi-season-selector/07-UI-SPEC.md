@@ -55,7 +55,9 @@ Streamlit uses its own typography system. The contract below maps Streamlit elem
 | Body | `st.caption`, `st.write` body text | 14px | 400 | 1.5 |
 | Label | `st.selectbox` label, widget labels | 14px | 600 | 1.4 |
 | Heading | `st.subheader` | 20px | 600 | 1.3 |
-| Display | `st.title` | 28px | 700 | 1.2 |
+| Display | `st.title` | 28px | 600 | 1.2 |
+
+Declared weights: 400 (Body) and 600 (Label, Heading, Display). `st.title` renders at its own bold weight regardless of what CSS declares — specifying a third weight (700) has no implementation effect and is omitted.
 
 Source: Streamlit default theme; no custom font overrides. Values are Streamlit's built-in defaults — do not add custom CSS to alter these.
 
@@ -69,19 +71,33 @@ Streamlit's default light theme governs the palette. The 60/30/10 split below ma
 |------|-------|-------|
 | Dominant (60%) | `#FFFFFF` (Streamlit default surface) | Page background, widget backgrounds |
 | Secondary (30%) | `#F0F2F6` (Streamlit sidebar / card surface) | Expander backgrounds, `st.info` / `st.warning` containers |
-| Accent (10%) | `#FF4B4B` (Streamlit primary red) | Spray chart: HRs that clear the selected park fence (green dot), and primary action elements |
+| Accent (10%) | `#FF4B4B` (Streamlit primary red) | `st.info` call-to-action text (Streamlit-managed) and primary interactive elements only |
 | Destructive | `#FF4B4B` via `st.error` | Error banners only (MLB API failure) |
 
 Accent reserved for:
-- Spray chart HR dots that CLEAR the selected park fence (green: `rgba(44, 160, 44, 1.0)`)
-- Spray chart HR dots that do NOT clear the selected park fence (red: `rgba(214, 39, 40, 1.0)`)
 - `st.info` call-to-action text (Streamlit-managed)
+
+Data Encoding Colors (spray chart — not interactive accent):
+- HR dots that CLEAR the selected park fence: `rgba(44, 160, 44, 1.0)` (green)
+- HR dots that do NOT clear the selected park fence: `rgba(214, 39, 40, 1.0)` (red)
+
+These two colors are data-encoding values applied to Plotly scatter markers. They are not part of the 60/30/10 interactive accent system.
 
 Source: Existing `app.py` and `chart.py` color usage; Streamlit default theme. Do not add `.streamlit/config.toml` theme overrides in this phase (Phase 8 handles that).
 
 Park Rankings table highlight colors (pre-established in v1.0):
 - Top 3 parks: `rgba(44, 160, 44, 0.15)` green row background
 - Bottom 3 parks: `rgba(214, 39, 40, 0.15)` red row background
+
+---
+
+## Visual Hierarchy
+
+Primary visual anchor: the Plotly spray chart. All other elements (metric row, Park Rankings expander, HR table) are secondary and appear below the spray chart in the render tree.
+
+Reading order: page title → selector cascade → divider → metric row → spray chart (primary focal point) → Park Rankings expander → HR table.
+
+No element above the spray chart should draw more visual weight than the chart itself. Status banners (`st.info`, `st.warning`, `st.error`) appear before the metric row and resolve before the chart renders.
 
 ---
 
@@ -157,7 +173,7 @@ All copy is pre-established in v1.0 or trivially derived for multi-season contex
 | Spinner | `"Loading player data..."` | v1.0 established |
 | API error | `"Could not load data. The MLB API may be temporarily unavailable. ({ExceptionType})"` | v1.0 established (`st.error`) |
 | Partial feed error | `"{N} game feed(s) failed to fetch; HR data may be incomplete."` | v1.0 established (`st.warning`) |
-| Retry CTA | `"Retry"` | v1.0 established (`st.button`) |
+| Retry CTA | `"Retry Request"` | updated from v1.0 "Retry" — verb + noun pattern (`st.button`) |
 | Spray chart subheader | `"Spray Chart"` | v1.0 established |
 | HR table subheader | `"Plottable HRs"` | v1.0 established |
 | Park Rankings expander | `"Park Rankings"` | v1.0 established |
@@ -166,6 +182,7 @@ All copy is pre-established in v1.0 or trivially derived for multi-season contex
 Copy changes required in this phase:
 1. Player selector help: `"sorted by current-season HR count."` → `"sorted by season HR count."` (minor accuracy improvement for historical seasons)
 2. No plottable HRs: `"has no plottable HRs this season."` → `"has no plottable HRs in {season}."` (interpolate season year)
+3. Retry CTA: `"Retry"` → `"Retry Request"` (verb + noun pattern)
 
 Destructive actions in this phase: none.
 
@@ -183,7 +200,7 @@ st.divider()
 [render region — unchanged from v1.0]
   st.info / st.error / st.warning banners
   st.columns(4) — metric row
-  st.subheader("Spray Chart") + st.plotly_chart(...)
+  st.subheader("Spray Chart") + st.plotly_chart(...)   ← PRIMARY FOCAL POINT
   st.expander("Park Rankings") + st.dataframe(...)
   st.subheader("Plottable HRs") + st.dataframe(...)
 ```
@@ -212,7 +229,7 @@ No third-party component registries. All UI is Streamlit native widgets. Registr
 | All selected | team + player + venue all non-None | `st.spinner` → `build_view` → render spray chart + tables |
 | Player has 0 HRs in season | `view.events` is empty | `st.info("{name} has no home runs in {season}.")` |
 | Player has HRs but none plottable | `view.plottable_events` is empty | `st.info("{name} has no plottable HRs in {season}.")` |
-| API failure | Exception in `build_view` | `st.error(...)` + `st.button("Retry")` + `st.stop()` |
+| API failure | Exception in `build_view` | `st.error(...)` + `st.button("Retry Request")` + `st.stop()` |
 | Partial feed failure | `view.errors` non-empty | `st.warning("{N} game feed(s) failed to fetch; HR data may be incomplete.")` |
 
 ---
