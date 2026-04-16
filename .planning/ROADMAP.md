@@ -104,8 +104,8 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   3. While data is being fetched (gameLog, game feeds), a loading spinner is visible to the user.
   4. When an API fetch fails, a friendly `st.error` explains what happened and offers a retry action that clears the offending cache entry.
 **Plans**: 2 plans
-- [ ] 06-01-PLAN.md — Code review cleanups: promote private helpers, guard next(), extract constants, remove stale caption (Wave 1)
-- [ ] 06-02-PLAN.md — Summary metrics card + park ranking expander + spinner + error handling (Wave 2)
+- [x] 06-01-PLAN.md — Code review cleanups: promote private helpers, guard next(), extract constants, remove stale caption (Wave 1)
+- [x] 06-02-PLAN.md — Summary metrics card + park ranking expander + spinner + error handling (Wave 2)
 **UI hint**: yes
 
 ## Progress
