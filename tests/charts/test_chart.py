@@ -100,3 +100,8 @@ def test_empty_plottable_events(empty_view, sample_park):
     fig = chart.build_figure(empty_view, sample_park)
     hrs = next(t for t in fig.data if t.name == "hrs")
     assert len(hrs.x) == 0 and len(hrs.y) == 0
+    # Stadium outline still renders (D-12).
+    trace_names = [t.name for t in fig.data]
+    assert "fair" in trace_names, (
+        f"stadium outline missing from empty-state figure: {trace_names}"
+    )

@@ -44,17 +44,58 @@ Y_RANGE = [0, 500]
 def build_figure(view: ViewModel, park: Park) -> go.Figure:
     """Build the spray chart Figure for `view` + selected `park`.
 
-    Wave 1 scaffold: returns a Figure with only an empty HR-trace placeholder
-    and the locked layout applied. Fair-territory + infield + bases traces
-    land in Plan 05-02 (Wave 2); HR scatter + hover + customdata land in
-    Plan 05-03 (Wave 3).
+    Trace z-order (D-01): fair territory -> infield skin -> baselines ->
+    mound -> bases -> HR scatter (LAST, always on top).
     """
     fig = go.Figure()
-    # Wave 2 will insert: _fair_territory_trace(park), _infield_skin_trace(),
-    # _baselines_trace(), _mound_trace(), _bases_trace() BEFORE the HR trace.
+    fig.add_trace(_fair_territory_trace(park))
+    fig.add_trace(_infield_skin_trace())
+    # Task 2 inserts: _baselines_trace(), _mound_trace(), _bases_trace()
     fig.add_trace(_hr_scatter_trace(view))  # ALWAYS LAST (D-01 z-order)
     _apply_layout(fig)
     return fig
+
+
+def _fair_territory_trace(park: Park) -> go.Scatter:
+    """Fair-territory polygon from Park fence curve (D-01, D-10).
+
+    Vertices: home -> LF-line fence pt -> ... -> RF-line fence pt -> home.
+    Transparently handles both 5-point (5 fence vertices) and 7-point (7 fence
+    vertices) parks by iterating whatever length `park.angles_deg` supplies.
+
+    Sign convention (D-11, verified vs transform.py):
+        x = fence_ft * sin(angle_rad)    # + = RF, - = LF
+        y = fence_ft * cos(angle_rad)    # always >= 0 in fair territory
+    """
+    angles_rad = np.deg2rad(park.angles_deg)
+    xs = park.fence_ft * np.sin(angles_rad)
+    ys = park.fence_ft * np.cos(angles_rad)
+    x_closed = np.concatenate(([0.0], xs, [0.0]))
+    y_closed = np.concatenate(([0.0], ys, [0.0]))
+    return go.Scatter(
+        x=x_closed, y=y_closed,
+        mode="lines", fill="toself",
+        fillcolor=FAIR_TERRITORY,
+        line=dict(color=FAIR_TERRITORY, width=1),
+        hoverinfo="skip", showlegend=False, name="fair",
+    )
+
+
+def _infield_skin_trace() -> go.Scatter:
+    """Dirt infield as a quarter-annulus polygon (research Pattern 2).
+
+    Radius INFIELD_SKIN_RADIUS_FT (95 ft) from home, spanning -45 deg to +45 deg in
+    spray-angle space. Same every park -- MLB regulation (D-02).
+    """
+    arc_deg = np.linspace(-45.0, 45.0, 33)
+    arc_rad = np.deg2rad(arc_deg)
+    xs = np.concatenate(([0.0], INFIELD_SKIN_RADIUS_FT * np.sin(arc_rad), [0.0]))
+    ys = np.concatenate(([0.0], INFIELD_SKIN_RADIUS_FT * np.cos(arc_rad), [0.0]))
+    return go.Scatter(
+        x=xs, y=ys, mode="lines", fill="toself",
+        fillcolor=INFIELD_DIRT, line=dict(color=INFIELD_DIRT, width=0),
+        hoverinfo="skip", showlegend=False, name="infield",
+    )
 
 
 def _hr_scatter_trace(view: ViewModel) -> go.Scatter:
