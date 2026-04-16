@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A lightweight Streamlit hobby app that lets a user pick a team, then a player on that team, then a stadium, and visualizes every home run the player has hit this season. For each HR, the app calculates how many of the 30 MLB ballparks the ball would have cleared the fence at, and overlays the HRs on the selected stadium's outline — color-coded by whether each HR clears that specific park.
+A Streamlit app that lets a user pick an MLB team, then a player, then a stadium, and visualizes every home run the player has hit this season. For each HR, the app calculates how many of the 30 MLB ballparks the ball would have cleared the fence at, and overlays the HRs on the selected stadium's outline — color-coded by whether each HR clears that specific park. Summary metrics and a 30-park ranking table complete the picture.
 
 ## Core Value
 
@@ -12,72 +12,71 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Streamlit app with three cascading selectors: Team → Player → Stadium — v1.0
+- ✓ Fetch current season HR events (distance, spray coordinates, exit velo, launch angle) from `statsapi.mlb.com` — v1.0
+- ✓ Compute per-HR: spray angle, interpolated fence distance at that angle for each of 30 parks, HR/not-HR verdict — v1.0
+- ✓ Summary card: total HRs, average parks cleared (out of 30), no-doubters count, cheap-HR count — v1.0
+- ✓ Spray chart visualization: selected stadium outline drawn from fieldInfo, HRs plotted green/red by verdict — v1.0
+- ✓ Cache API responses via `st.cache_data` with per-endpoint TTLs — v1.0
+- ✓ Loading spinner and error handling with retry — v1.0
+- ✓ 30-park ranking table sorted by clears with top/bottom highlighting — v1.0
 
 ### Active
 
-- [ ] Streamlit app with three cascading selectors: Team → Player → Stadium
-- [ ] Fetch current season HR events (distance, spray coordinates, exit velo, launch angle) for the selected player from `statsapi.mlb.com`
-- [ ] Compute per-HR: spray angle from `coordX/coordY`, interpolated fence distance at that angle for each of the 30 parks, HR/not-HR verdict
-- [ ] Summary card: total HRs, average parks cleared (out of 30), no-doubters count, cheap-HR count
-- [ ] Spray chart visualization: selected stadium's outline drawn from `fieldInfo` dimensions, all HRs plotted with green/red based on whether they clear that stadium
-- [ ] Per-HR table: date, distance, exit velo, launch angle, parks cleared out of 30
-- [ ] Cache API responses (Streamlit `st.cache_data`) — venues long TTL, game feeds ~1hr TTL
+(None — v1.0 shipped. Add requirements here for next milestone.)
 
 ### Out of Scope
 
-- Wall height modeling (Green Monster, etc.) — API doesn't return fence heights; accepted as a v1 caveat to revisit later
-- Career HR history — scope creep; current season keeps the data volume tractable
+- Wall height modeling (Green Monster, etc.) — API doesn't return fence heights; accepted as a v1 caveat
+- Career HR history — scope creep; current season keeps data volume tractable
 - Park factor calculations (run/HR multipliers) — not in the API; FanGraphs territory
-- Third-party wrapper libraries (e.g., `MLB-StatsAPI` PyPI package) — user prefers direct HTTP to inspect raw JSON shape
-- Live/in-progress game updates beyond what the daily feed provides — hobby app, not a live scoreboard
+- Third-party wrapper libraries — user prefers direct HTTP to inspect raw JSON
+- Live/in-progress game updates — hobby app, not a live scoreboard
 - User accounts, saved players, sharing — single-user local app
 
 ## Context
 
-- **MLB StatsAPI is unofficial but stable**: `statsapi.mlb.com/api/v1/...` is the endpoint MLB's own Gameday site uses. Not officially documented for public use, but widely consumed and stable.
-- **Key endpoints already verified**:
-  - `/schedule?sportId=1&date=...` — games by date, gamePks
-  - `/teams?sportId=1` — all 30 MLB teams
-  - `/teams/{id}/roster` — rostered players
-  - `/people/{id}/stats?stats=gameLog&group=hitting&season=...` — per-game hitting logs (identifies games where player hit HRs)
-  - `/game/{gamePk}/feed/live` — play-by-play with `hitData` (launchSpeed, launchAngle, totalDistance, coordX/Y) per batted ball
-  - `/venues/{id}?hydrate=fieldInfo` — fence distances (LF line, LF, LCF, CF, RCF, RF line), capacity, roof, elevation
-- **Data pipeline**: for a player, pull gameLog → filter games with HRs → fetch each game feed → extract HR plays matching batter id → collect `hitData`.
-- **Coordinate system**: `hitData.coordinates.coordX/coordY` uses Gameday's field coordinate system (home plate near ~(125, 200)). Spray angle is derived geometrically from these coords.
+Shipped v1.0 with 5,151 LOC Python (2,143 source + 3,008 tests), 110 passing tests.
+
+Tech stack: Python 3.12, Streamlit, Plotly, pandas, requests, numpy.
+
+Architecture: `mlb_api.py` (cached HTTP wrappers) → `pipeline/extract.py` (HR extraction with degradation) → `geometry/` (coordinate transform, fence interpolation, verdict matrix) → `controller.py` (ViewModel assembly) → `chart.py` (Plotly rendering) → `app.py` (Streamlit entry point).
 
 ## Constraints
 
-- **Tech stack**: Python + Streamlit + `requests` + matplotlib/plotly for plotting — hobby project, stay lightweight
-- **API**: Direct HTTP to `statsapi.mlb.com/api/v1` only — no `MLB-StatsAPI` PyPI wrapper or similar
+- **Tech stack**: Python + Streamlit + requests + Plotly — hobby project, stay lightweight
+- **API**: Direct HTTP to `statsapi.mlb.com/api/v1` only — no third-party wrappers
 - **Scope**: Current season only, single-user local app — no persistence beyond Streamlit cache
-- **Rate**: No hammering the API — aggressive caching, avoid fetching all 162 games per team
+- **Rate**: Aggressive caching, avoid unnecessary API calls
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Direct HTTP over third-party wrappers | User wants to inspect raw JSON and keep deps minimal | — Pending |
-| Ignore wall height in v1 HR verdict | API doesn't expose fence height; distance+angle is a good first approximation | — Pending |
-| Current season only | Keeps per-player game feed fetches bounded (~50-60 games with HRs max) | — Pending |
-| Streamlit (not Flask/FastAPI+frontend) | Fastest path for a hobby data app with interactive selectors | — Pending |
+| Direct HTTP over third-party wrappers | User wants to inspect raw JSON and keep deps minimal | ✓ Good |
+| Ignore wall height in v1 HR verdict | API doesn't expose fence height; distance+angle is a good first approximation | ✓ Good — caveat accepted |
+| Current season only | Keeps per-player game feed fetches bounded (~50-60 games with HRs max) | ✓ Good |
+| Streamlit (not Flask/FastAPI+frontend) | Fastest path for a hobby data app with interactive selectors | ✓ Good |
+| Plotly over Matplotlib/Altair | Native interactivity, polygon overlays trivial, hover tooltips built-in | ✓ Good |
+| `st.cache_data` only, no requests-cache | Single caching layer at the function boundary; avoids dual-invalidation | ✓ Good |
+| Pure-function geometry (no shapely) | 1-D distance-at-angle interpolation, not 2-D containment; avoids GEOS C dep | ✓ Good |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
-**After each phase transition** (via `/gsd-transition`):
+**After each phase transition:**
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
 4. Decisions to log? → Add to Key Decisions
 5. "What This Is" still accurate? → Update if drifted
 
-**After each milestone** (via `/gsd-complete-milestone`):
+**After each milestone:**
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 — Phase 6 (Summary, Rankings & Polish) complete. v1 ships with summary metrics card, park rankings table, loading spinner, and error handling with retry. All 6 phases complete.*
+*Last updated: 2026-04-16 after v1.0 milestone*
