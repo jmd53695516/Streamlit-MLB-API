@@ -103,7 +103,10 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
   2. A "best and worst parks for this player" section ranks the top 3 parks where the most of this player's HRs clear and the bottom 3 where the fewest clear.
   3. While data is being fetched (gameLog, game feeds), a loading spinner is visible to the user.
   4. When an API fetch fails, a friendly `st.error` explains what happened and offers a retry action that clears the offending cache entry.
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 06-01-PLAN.md — Code review cleanups: promote private helpers, guard next(), extract constants, remove stale caption (Wave 1)
+- [ ] 06-02-PLAN.md — Summary metrics card + park ranking expander + spinner + error handling (Wave 2)
+**UI hint**: yes
 
 ## Progress
 
@@ -114,7 +117,7 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 | 3. HR Pipeline | 0/3 | Not started | - |
 | 4. Controller & Selectors UI | 0/3 | Not started | - |
 | 5. Spray Chart Visualization | 0/? | Not started | - |
-| 6. Summary, Rankings & Polish | 0/? | Not started | - |
+| 6. Summary, Rankings & Polish | 0/2 | Not started | - |
 
 ## Coverage Validation
 
@@ -138,4 +141,4 @@ Total: 18/18 requirements mapped, no orphans, no duplicates.
 - **Phase 3** needs deeper research on exact `hitData` location within `playEvents` and the full set of HR `result.eventType` values (including ITP / reversed plays).
 
 ---
-*Last updated: 2026-04-14 after initial roadmap creation*
+*Last updated: 2026-04-15 after Phase 6 planning — 2 plans in 2 waves*
