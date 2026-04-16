@@ -396,3 +396,156 @@ def test_view_model_selection_fields_populated(
     assert vm.player_name == "Aaron Judge"
     assert vm.venue_name == "Yankee Stadium"
     assert vm.player_home_venue_id == YANKEE_STADIUM
+
+
+# ---------------------------------------------------------------------------
+# 8. build_park_ranking tests (VIZ-05, Plan 06-02)
+# ---------------------------------------------------------------------------
+
+def _make_minimal_view(cleared_array, margin_array, park_names):
+    """Build a minimal ViewModel for park ranking tests.
+
+    cleared_array: np.ndarray of shape (n_hrs, n_parks) bool
+    margin_array:  np.ndarray of shape (n_hrs, n_parks) float
+    park_names:    list[str] of length n_parks
+    """
+    from mlb_park.geometry.park import Park
+    from mlb_park.geometry.verdict import VerdictMatrix
+
+    n_parks = len(park_names)
+    n_hrs = cleared_array.shape[0]
+
+    parks = tuple(
+        Park(
+            venue_id=j + 1,
+            name=park_names[j],
+            angles_deg=np.array([-45.0, 0.0, 45.0]),
+            distances_ft=np.array([330.0, 400.0, 330.0]),
+        )
+        for j in range(n_parks)
+    )
+    venue_ids = np.array([p.venue_id for p in parks], dtype=int)
+
+    matrix = VerdictMatrix(
+        hrs=tuple(object() for _ in range(n_hrs)),
+        parks=parks,
+        venue_ids=venue_ids,
+        spray_raw_deg=np.zeros(n_hrs),
+        spray_clamped_deg=np.zeros(n_hrs),
+        distance_ft=np.zeros(n_hrs),
+        fence_ft=np.zeros((n_hrs, n_parks)),
+        margin_ft=margin_array,
+        cleared=cleared_array,
+    )
+
+    plottable = tuple(object() for _ in range(n_hrs))
+
+    return ViewModel(
+        season=2026,
+        team_id=147,
+        team_abbr="NYY",
+        player_id=592450,
+        player_name="Test Player",
+        venue_id=1,
+        venue_name="Park A",
+        player_home_venue_id=1,
+        events=plottable,
+        plottable_events=plottable,
+        verdict_matrix=matrix,
+        clears_selected_park=tuple(bool(cleared_array[i, 0]) for i in range(n_hrs)),
+        totals={
+            "total_hrs": n_hrs,
+            "plottable_hrs": n_hrs,
+            "avg_parks_cleared": float(cleared_array.sum(axis=1).mean()),
+            "no_doubters": 0,
+            "cheap_hrs": 0,
+        },
+        errors=(),
+    )
+
+
+def test_build_park_ranking_basic():
+    """build_park_ranking returns sorted DataFrame with correct columns and row count."""
+    from mlb_park.controller import build_park_ranking
+
+    # 2 HRs x 3 parks
+    # Park A: clears = 2, Park B: clears = 1, Park C: clears = 0
+    cleared = np.array([
+        [True,  True,  False],
+        [True,  False, False],
+    ], dtype=bool)
+    margin = np.array([
+        [10.0,  5.0, -3.0],
+        [20.0, -8.0, -12.0],
+    ], dtype=float)
+
+    view = _make_minimal_view(cleared, margin, ["Park A", "Park B", "Park C"])
+    df = build_park_ranking(view)
+
+    assert list(df.columns) == ["Park", "Clears", "Clear %", "Avg Margin (ft)"]
+    assert len(df) == 3
+    # Sorted by Clears descending
+    assert list(df["Park"]) == ["Park A", "Park B", "Park C"]
+    assert list(df["Clears"]) == [2, 1, 0]
+
+
+def test_build_park_ranking_empty():
+    """build_park_ranking returns empty DataFrame with correct columns when verdict_matrix is None."""
+    from mlb_park.controller import build_park_ranking
+
+    view = ViewModel(
+        season=2026,
+        team_id=147,
+        team_abbr="NYY",
+        player_id=592450,
+        player_name="Test Player",
+        venue_id=1,
+        venue_name="Park A",
+        player_home_venue_id=1,
+        events=(),
+        plottable_events=(),
+        verdict_matrix=None,
+        clears_selected_park=(),
+        totals={
+            "total_hrs": 0,
+            "plottable_hrs": 0,
+            "avg_parks_cleared": 0.0,
+            "no_doubters": 0,
+            "cheap_hrs": 0,
+        },
+        errors=(),
+    )
+    df = build_park_ranking(view)
+    assert list(df.columns) == ["Park", "Clears", "Clear %", "Avg Margin (ft)"]
+    assert len(df) == 0
+
+
+def test_build_park_ranking_format():
+    """build_park_ranking formats Clear % as 'XX%' and Avg Margin as '+X.X' or '-X.X'."""
+    from mlb_park.controller import build_park_ranking
+
+    # 2 HRs x 2 parks
+    # Park A: clears = 2/2 = 100%, margin mean = +15.0
+    # Park B: clears = 1/2 = 50%, margin mean = -2.5
+    cleared = np.array([
+        [True,  True],
+        [True,  False],
+    ], dtype=bool)
+    margin = np.array([
+        [10.0,  3.0],
+        [20.0, -8.0],
+    ], dtype=float)
+
+    view = _make_minimal_view(cleared, margin, ["Park A", "Park B"])
+    df = build_park_ranking(view)
+
+    # Park A: 100%, Park B: 50%
+    row_a = df[df["Park"] == "Park A"].iloc[0]
+    row_b = df[df["Park"] == "Park B"].iloc[0]
+
+    assert row_a["Clear %"] == "100%"
+    assert row_b["Clear %"] == "50%"
+    # Avg margin for Park A: (10 + 20) / 2 = +15.0
+    assert row_a["Avg Margin (ft)"] == "+15.0"
+    # Avg margin for Park B: (3 + -8) / 2 = -2.5
+    assert row_b["Avg Margin (ft)"] == "-2.5"
