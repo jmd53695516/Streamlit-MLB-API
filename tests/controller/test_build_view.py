@@ -420,7 +420,7 @@ def _make_minimal_view(cleared_array, margin_array, park_names):
             venue_id=j + 1,
             name=park_names[j],
             angles_deg=np.array([-45.0, 0.0, 45.0]),
-            distances_ft=np.array([330.0, 400.0, 330.0]),
+            fence_ft=np.array([330.0, 400.0, 330.0]),
         )
         for j in range(n_parks)
     )

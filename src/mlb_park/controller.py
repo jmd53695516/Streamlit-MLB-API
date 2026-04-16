@@ -14,6 +14,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Union
 
+import pandas as pd
+
 from mlb_park.pipeline import (  # noqa: F401 — re-exports primed for Plan 04-02
     CURRENT_SEASON,
     HREvent,
@@ -344,9 +346,39 @@ def build_view(
     )
 
 
+def build_park_ranking(view: ViewModel) -> pd.DataFrame:
+    """Build a 30-row park ranking DataFrame sorted by clears descending (VIZ-05).
+
+    Columns: Park, Clears, Clear %, Avg Margin (ft).
+
+    Returns empty DataFrame with correct columns when verdict_matrix is None
+    or plottable_events is empty.
+    """
+    if view.verdict_matrix is None or not view.plottable_events:
+        return pd.DataFrame(columns=["Park", "Clears", "Clear %", "Avg Margin (ft)"])
+
+    matrix = view.verdict_matrix
+    n_plottable = len(view.plottable_events)
+    rows = []
+    for j, park in enumerate(matrix.parks):
+        clears = int(matrix.cleared[:, j].sum())
+        clear_pct = clears / n_plottable * 100
+        avg_margin = float(matrix.margin_ft[:, j].mean())
+        rows.append({
+            "Park": park.name,
+            "Clears": clears,
+            "Clear %": f"{clear_pct:.0f}%",
+            "Avg Margin (ft)": f"{avg_margin:+.1f}",
+        })
+    df = pd.DataFrame(rows)
+    df = df.sort_values(by=["Clears", "Park"], ascending=[False, True]).reset_index(drop=True)
+    return df
+
+
 __all__ = [
     "ViewModel",
     "build_view",
+    "build_park_ranking",
     "sorted_teams",
     "sorted_hitters",
     "hr_of",
