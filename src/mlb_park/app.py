@@ -16,7 +16,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from mlb_park import controller
+from mlb_park import chart, controller
+from mlb_park.geometry.park import Park
 from mlb_park.pipeline import CURRENT_SEASON
 from mlb_park.services.mlb_api import (
     get_teams,
@@ -147,13 +148,24 @@ else:
             f"{n} {noun} failed to fetch; see raw ViewModel below for details."
         )
 
-    # Empty-state info banners (D-25, D-26).
+    # --- Spray chart (Phase 5, VIZ-01/02/03) ---
+    venue_fieldinfo = parks_map[view.venue_id].get("fieldInfo") or {}
+    park = Park.from_field_info(
+        venue_fieldinfo,
+        venue_id=view.venue_id,
+        name=view.venue_name,
+    )
+
+    # Empty-state info banners (D-25, D-26, D-12).
     if not view.events:
         st.info(f"{view.player_name} has no home runs in {view.season}.")
     elif not view.plottable_events:
-        st.info(
-            "No HRs have hitData for the verdict matrix — "
-            "pipeline returned events but none are plottable."
+        st.info(f"{view.player_name} has no plottable HRs this season.")
+    else:
+        st.subheader("Spray Chart")
+        st.plotly_chart(
+            chart.build_figure(view, park),
+            use_container_width=True,
         )
 
     # Raw JSON dump (always, D-24).
