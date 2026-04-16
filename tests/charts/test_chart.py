@@ -60,6 +60,14 @@ def test_hr_scatter_is_last_trace(sample_view, sample_park):
     )
 
 
+def test_trace_z_order(sample_view, sample_park):
+    fig = chart.build_figure(sample_view, sample_park)
+    names = [t.name for t in fig.data]
+    assert names == ["fair", "infield", "baselines", "mound", "bases", "hrs"], (
+        f"trace z-order incorrect: {names}"
+    )
+
+
 def test_hr_marker_colors_match_clears_tuple(sample_view, sample_park):
     fig = chart.build_figure(sample_view, sample_park)
     hrs = next(t for t in fig.data if t.name == "hrs")

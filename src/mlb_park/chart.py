@@ -50,8 +50,10 @@ def build_figure(view: ViewModel, park: Park) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(_fair_territory_trace(park))
     fig.add_trace(_infield_skin_trace())
-    # Task 2 inserts: _baselines_trace(), _mound_trace(), _bases_trace()
-    fig.add_trace(_hr_scatter_trace(view))  # ALWAYS LAST (D-01 z-order)
+    fig.add_trace(_baselines_trace())
+    fig.add_trace(_mound_trace())
+    fig.add_trace(_bases_trace())
+    fig.add_trace(_hr_scatter_trace(view))  # MUST remain last (D-01, Pitfall 2)
     _apply_layout(fig)
     return fig
 
@@ -95,6 +97,61 @@ def _infield_skin_trace() -> go.Scatter:
         x=xs, y=ys, mode="lines", fill="toself",
         fillcolor=INFIELD_DIRT, line=dict(color=INFIELD_DIRT, width=0),
         hoverinfo="skip", showlegend=False, name="infield",
+    )
+
+
+# Base positions in chart coords -- 90-ft basepaths rotated +/-45 deg from CF axis.
+_SQRT2_OVER_2 = float(np.sqrt(2.0) / 2.0)
+_FIRST_BASE = (+BASE_DISTANCE_FT * _SQRT2_OVER_2, +BASE_DISTANCE_FT * _SQRT2_OVER_2)
+_SECOND_BASE = (0.0, BASE_DISTANCE_FT * float(np.sqrt(2.0)))
+_THIRD_BASE = (-BASE_DISTANCE_FT * _SQRT2_OVER_2, +BASE_DISTANCE_FT * _SQRT2_OVER_2)
+_HOME_PLATE = (0.0, 0.0)
+
+
+def _baselines_trace() -> go.Scatter:
+    """Thin white lines connecting home -> 1B -> 2B -> 3B -> home (D-01)."""
+    xs = [_HOME_PLATE[0], _FIRST_BASE[0], _SECOND_BASE[0], _THIRD_BASE[0], _HOME_PLATE[0]]
+    ys = [_HOME_PLATE[1], _FIRST_BASE[1], _SECOND_BASE[1], _THIRD_BASE[1], _HOME_PLATE[1]]
+    return go.Scatter(
+        x=xs, y=ys, mode="lines",
+        line=dict(color=BASES_FG, width=1.5),
+        hoverinfo="skip", showlegend=False, name="baselines",
+    )
+
+
+def _mound_trace() -> go.Scatter:
+    """Pitcher's mound -- small filled circle at (0, MOUND_DISTANCE_FT).
+
+    Radius ~5 ft; rendered as a 25-vertex parametric circle closed into a
+    fill='toself' polygon so z-order follows trace-add order (Pitfall 2).
+    """
+    theta = np.linspace(0.0, 2.0 * np.pi, 25)
+    radius = 5.0
+    xs = radius * np.cos(theta)
+    ys = MOUND_DISTANCE_FT + radius * np.sin(theta)
+    return go.Scatter(
+        x=xs, y=ys, mode="lines", fill="toself",
+        fillcolor=MOUND_DIRT, line=dict(color=MOUND_DIRT, width=0),
+        hoverinfo="skip", showlegend=False, name="mound",
+    )
+
+
+def _bases_trace() -> go.Scatter:
+    """Four base markers: home (pentagon) + 1B/2B/3B (diamonds).
+
+    Single trace with per-point marker.symbol list. Home uses pentagon;
+    the three bags use diamond (Plotly diamond is a rotated square).
+    """
+    xs = [_HOME_PLATE[0], _FIRST_BASE[0], _SECOND_BASE[0], _THIRD_BASE[0]]
+    ys = [_HOME_PLATE[1], _FIRST_BASE[1], _SECOND_BASE[1], _THIRD_BASE[1]]
+    symbols = ["pentagon", "diamond", "diamond", "diamond"]
+    return go.Scatter(
+        x=xs, y=ys, mode="markers",
+        marker=dict(
+            symbol=symbols, size=10,
+            color=BASES_FG, line=dict(color="#888888", width=1),
+        ),
+        hoverinfo="skip", showlegend=False, name="bases",
     )
 
 
