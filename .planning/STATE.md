@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: MVP
-status: v1.0 milestone complete
-last_updated: "2026-04-16T08:30:00.000Z"
+milestone: v1.1
+milestone_name: Multi-Season & Deploy
+status: Defining requirements
+last_updated: "2026-04-16T12:00:00.000Z"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State — Streamlit MLB HR Park Factor Explorer
@@ -19,13 +19,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-16)
 
 **Core value**: Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs this season?" by comparing each HR's distance and spray angle against every MLB park's fence dimensions.
-**Current focus**: v1.0 shipped. Planning next milestone.
+**Current focus**: v1.1 — Multi-season selector + Streamlit Cloud deployment.
 
 ## Current Position
 
-- **Milestone**: v1.0 (complete)
-- **Status**: Milestone shipped 2026-04-16
-- **Progress**: [████████████████████] 6/6 phases, 17/17 plans (100%)
+- **Milestone**: v1.1 Multi-Season & Deploy
+- **Status**: Defining requirements
+- **Progress**: Not started
 
 ## Performance Metrics
 
@@ -57,11 +57,11 @@ None.
 
 ## Session Continuity
 
-**Last session ended**: 2026-04-16 — v1.0 milestone completed and archived.
+**Last session ended**: 2026-04-16 — v1.1 milestone started.
 
 **Next session should**:
 
-1. Run `/gsd-new-milestone` to plan next milestone if desired.
+1. Define requirements and create roadmap for v1.1.
 
 ---
-*Last updated: 2026-04-16 after v1.0 milestone completion*
+*Last updated: 2026-04-16 after v1.1 milestone start*

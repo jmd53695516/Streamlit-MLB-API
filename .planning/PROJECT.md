@@ -23,7 +23,20 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 
 ### Active
 
-(None — v1.0 shipped. Add requirements here for next milestone.)
+- [ ] Season selector — user can pick any of the past 5 MLB seasons
+- [ ] All API calls and caching parameterized by selected season
+- [ ] Deploy to Streamlit Community Cloud with a shareable URL
+- [ ] Deployment prep — secrets management, README, requirements for cloud
+
+## Current Milestone: v1.1 Multi-Season & Deploy
+
+**Goal:** Add a season selector (last 5 years) and deploy to Streamlit Community Cloud for friends to access.
+
+**Target features:**
+- Season selector — pick any of the past 5 MLB seasons
+- Parameterize all API calls and caching by selected season
+- Deploy to Streamlit Community Cloud with a shareable URL
+- Deployment prep — secrets management, README, requirements for cloud
 
 ### Out of Scope
 
@@ -79,4 +92,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after v1.0 milestone*
+*Last updated: 2026-04-16 after v1.1 milestone start*
