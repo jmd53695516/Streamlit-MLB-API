@@ -20,13 +20,14 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 - ✓ Cache API responses via `st.cache_data` with per-endpoint TTLs — v1.0
 - ✓ Loading spinner and error handling with retry — v1.0
 - ✓ 30-park ranking table sorted by clears with top/bottom highlighting — v1.0
+- ✓ Season selector — user can pick any of the past 5 MLB seasons — v1.1 Phase 7
+- ✓ All API calls and caching parameterized by selected season — v1.1 Phase 7
+- ✓ Deploy to Streamlit Community Cloud with a shareable URL — v1.1 Phase 8
+- ✓ Deployment prep — config.toml, clean requirements, venues cache committed — v1.1 Phase 8
 
 ### Active
 
-- [ ] Season selector — user can pick any of the past 5 MLB seasons
-- [ ] All API calls and caching parameterized by selected season
-- [ ] Deploy to Streamlit Community Cloud with a shareable URL
-- [ ] Deployment prep — secrets management, README, requirements for cloud
+(No active requirements — v1.1 milestone complete)
 
 ## Current Milestone: v1.1 Multi-Season & Deploy
 
@@ -49,7 +50,7 @@ Given any MLB hitter, quickly answer "how cheap or no-doubt were their home runs
 
 ## Context
 
-Shipped v1.0 with 5,151 LOC Python (2,143 source + 3,008 tests), 110 passing tests.
+Shipped v1.1 — app deployed to Streamlit Community Cloud at https://app-mlb-api-dvrdlepwwy8a8yvw92psnu.streamlit.app/. Multi-season support (2022-2026), 127 passing tests.
 
 Tech stack: Python 3.12, Streamlit, Plotly, pandas, requests, numpy.
 
@@ -92,4 +93,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after v1.1 milestone start*
+*Last updated: 2026-04-16 after Phase 8 (Cloud Deployment) completion*
