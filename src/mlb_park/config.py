@@ -3,6 +3,7 @@
 Source values: research/STACK.md TTL guide + ROADMAP criterion #2 +
 phase RESEARCH.md §Endpoint Contracts (verified live 2026-04-14).
 """
+import datetime
 from pathlib import Path
 
 BASE_URL_V1  = "https://statsapi.mlb.com/api/v1"
@@ -30,5 +31,11 @@ VENUES_STALE_DAYS = 30
 YANKEES_TEAM_ID = 147
 JUDGE_PERSON_ID = 592450
 
-# Current season — Phase 3 entry point default (D-16).
-CURRENT_SEASON = 2026
+# Current season — dynamic (Phase 7, D-07/D-08).
+def _current_season() -> int:
+    """Compute current MLB season. Jan-Feb maps to prior year (off-season)."""
+    now = datetime.datetime.now()
+    return now.year if now.month >= 3 else now.year - 1
+
+CURRENT_SEASON: int = _current_season()
+AVAILABLE_SEASONS: list[int] = list(range(CURRENT_SEASON, CURRENT_SEASON - 5, -1))

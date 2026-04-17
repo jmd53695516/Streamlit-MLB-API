@@ -11,7 +11,7 @@ Convenience re-exports (for Phase 4 single-import-origin consumers):
   - MLBAPIError                       (Phase 1 service-layer exception type)
   - CURRENT_SEASON                    (Phase 3 season default, D-16)
 """
-from mlb_park.config import CURRENT_SEASON
+from mlb_park.config import AVAILABLE_SEASONS, CURRENT_SEASON
 from mlb_park.geometry.park import load_parks
 from mlb_park.geometry.verdict import HitData, compute_verdict_matrix
 from mlb_park.pipeline.events import HREvent, PipelineError, PipelineResult
@@ -32,4 +32,5 @@ __all__ = [
     "load_parks",
     "MLBAPIError",
     "CURRENT_SEASON",
+    "AVAILABLE_SEASONS",
 ]
