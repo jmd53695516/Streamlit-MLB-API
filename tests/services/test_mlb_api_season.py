@@ -171,9 +171,18 @@ def test_game_feed_has_max_entries_200():
 
 def test_game_feed_ttl_is_30d():
     """get_game_feed must use ttl='30d' (raised from 7d — completed feeds are immutable)."""
-    source_text = Path(mlb_api.__file__).read_text(encoding="utf-8")
-    # Check the game_feed function specifically
-    # Find the section around get_game_feed
-    assert 'ttl="30d"' in source_text, (
-        "get_game_feed must have ttl='30d' in its @st.cache_data decorator"
-    )
+    lines = Path(mlb_api.__file__).read_text(encoding="utf-8").splitlines()
+    # Narrow check: find the get_game_feed function and inspect its decorator
+    found = False
+    for i, line in enumerate(lines):
+        if "def get_game_feed" in line:
+            # Look backwards from the def line for the nearest @st.cache_data decorator
+            for j in range(i - 1, max(i - 5, -1), -1):
+                if "@st.cache_data" in lines[j]:
+                    assert 'ttl="30d"' in lines[j], (
+                        f"get_game_feed decorator must have ttl='30d', got: {lines[j].strip()}"
+                    )
+                    found = True
+                    break
+            break
+    assert found, "Could not find @st.cache_data decorator for get_game_feed"
