@@ -100,19 +100,24 @@ def _raw_game_log(person_id: int, season: int) -> list[dict]:
 
 
 def _raw_team_hitting_stats(team_id: int, season: int) -> list[dict]:
-    """Hydrated active roster with single-season hitting stats (D-11 amended).
+    """Hydrated roster with single-season hitting stats (D-11 amended).
 
-    URL: /teams/{team_id}/roster?rosterType=active
+    Phase 7 D-03/D-04: fullSeason for past seasons, active for current.
+
+    URL: /teams/{team_id}/roster?rosterType={active|fullSeason}
+         &season={season}
          &hydrate=person(stats(type=statsSingleSeason,season={season},group=hitting))
 
     Returns the `roster` list (possibly empty — D-15).
     """
     assert isinstance(team_id, int) and isinstance(season, int), \
         "team_id and season must be int (SSRF guard, T-4-01)"
+    from mlb_park.config import CURRENT_SEASON
+    roster_type = "active" if season >= CURRENT_SEASON else "fullSeason"
     hydrate = f"person(stats(type=statsSingleSeason,season={season},group=hitting))"
     resp = _get(
         f"{BASE_URL_V1}/teams/{team_id}/roster",
-        params={"rosterType": "active", "hydrate": hydrate},
+        params={"rosterType": roster_type, "season": season, "hydrate": hydrate},
     )
     return resp.get("roster", [])
 
@@ -148,14 +153,28 @@ def get_roster(team_id: int) -> list[dict]:
 
 
 @st.cache_data(ttl=TTL_GAMELOG, show_spinner=False)
-def get_game_log(person_id: int, season: int) -> list[dict]:
-    """Hitter game log, regular season only. TTL 1h."""
+def get_game_log_current(person_id: int, season: int) -> list[dict]:
+    """Hitter game log, current season. TTL 1h."""
     return _raw_game_log(person_id, season)
 
 
+@st.cache_data(ttl="30d", show_spinner=False)
+def get_game_log_historical(person_id: int, season: int) -> list[dict]:
+    """Hitter game log, past seasons. TTL 30d (immutable)."""
+    return _raw_game_log(person_id, season)
+
+
+def get_game_log(person_id: int, season: int) -> list[dict]:
+    """Dispatcher: 30d TTL for past seasons, 1h for current (D-05/D-06)."""
+    from mlb_park.config import CURRENT_SEASON
+    if season < CURRENT_SEASON:
+        return get_game_log_historical(person_id, season)
+    return get_game_log_current(person_id, season)
+
+
 @st.cache_data(ttl=TTL_GAMELOG, show_spinner=False)
-def get_team_hitting_stats(team_id: int, season: int) -> list[dict]:
-    """Active roster hydrated with per-player single-season hitting stats. TTL 1h (D-14).
+def get_team_hitting_stats_current(team_id: int, season: int) -> list[dict]:
+    """Active roster hydrated with per-player single-season hitting stats, current season. TTL 1h (D-14).
 
     D-11 amended endpoint — the `person.stats[0].splits[0].stat.homeRuns`
     field on each roster entry is the season HR total used by the Phase 4
@@ -164,9 +183,23 @@ def get_team_hitting_stats(team_id: int, season: int) -> list[dict]:
     return _raw_team_hitting_stats(team_id, season)
 
 
-@st.cache_data(ttl=TTL_FEED, show_spinner=False)
+@st.cache_data(ttl="30d", show_spinner=False)
+def get_team_hitting_stats_historical(team_id: int, season: int) -> list[dict]:
+    """Full-season roster hydrated with per-player single-season hitting stats, past season. TTL 30d."""
+    return _raw_team_hitting_stats(team_id, season)
+
+
+def get_team_hitting_stats(team_id: int, season: int) -> list[dict]:
+    """Dispatcher: 30d TTL for past seasons, existing TTL for current (D-05/D-06)."""
+    from mlb_park.config import CURRENT_SEASON
+    if season < CURRENT_SEASON:
+        return get_team_hitting_stats_historical(team_id, season)
+    return get_team_hitting_stats_current(team_id, season)
+
+
+@st.cache_data(ttl="30d", max_entries=200, show_spinner=False)
 def get_game_feed(game_pk: int) -> dict:
-    """Live/completed game feed with play-by-play + hitData. TTL 7d."""
+    """Live/completed game feed with play-by-play + hitData. TTL 30d (immutable after completion). Max 200 entries (OOM guard, D-discretion)."""
     return _raw_game_feed(game_pk)
 
 

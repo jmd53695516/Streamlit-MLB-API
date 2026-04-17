@@ -31,8 +31,9 @@ def test_returns_roster_list(monkeypatch, team_stats_147_payload):
     monkeypatch.setattr(
         mlb_api, "_raw_team_hitting_stats", lambda team_id, season: team_stats_147_payload["roster"]
     )
-    # Clear the cache so the monkeypatched helper is actually called.
-    mlb_api.get_team_hitting_stats.clear()
+    # Phase 7: get_team_hitting_stats is now a plain dispatcher; clear the underlying cached wrappers.
+    mlb_api.get_team_hitting_stats_current.clear()
+    mlb_api.get_team_hitting_stats_historical.clear()
 
     result = mlb_api.get_team_hitting_stats(147, 2026)
 
@@ -47,7 +48,9 @@ def test_empty_roster_returns_empty_list(monkeypatch):
     monkeypatch.setattr(
         mlb_api, "_raw_team_hitting_stats", lambda team_id, season: []
     )
-    mlb_api.get_team_hitting_stats.clear()
+    # Phase 7: get_team_hitting_stats is now a plain dispatcher; clear the underlying cached wrappers.
+    mlb_api.get_team_hitting_stats_current.clear()
+    mlb_api.get_team_hitting_stats_historical.clear()
 
     result = mlb_api.get_team_hitting_stats(999, 2026)
 
@@ -83,3 +86,28 @@ def test_raw_helper_rejects_non_int_args():
         mlb_api._raw_team_hitting_stats("147", 2026)  # type: ignore[arg-type]
     with pytest.raises(AssertionError):
         mlb_api._raw_team_hitting_stats(147, "2026")  # type: ignore[arg-type]
+
+
+def test_historical_season_uses_full_season_roster_type(monkeypatch):
+    """Phase 7 SEASON-03: past season must use rosterType=fullSeason with explicit season param."""
+    from mlb_park.config import CURRENT_SEASON
+
+    captured: dict = {}
+
+    def fake_get(url: str, params: dict | None = None) -> dict:
+        captured["url"] = url
+        captured["params"] = params or {}
+        return {"roster": []}
+
+    monkeypatch.setattr(mlb_api, "_get", fake_get)
+
+    past_season = CURRENT_SEASON - 2
+    mlb_api._raw_team_hitting_stats(147, past_season)
+
+    params = captured["params"]
+    assert params["rosterType"] == "fullSeason", (
+        f"Expected rosterType=fullSeason for past season {past_season}, got {params.get('rosterType')!r}"
+    )
+    assert params["season"] == past_season, (
+        f"Expected season={past_season} in params, got {params.get('season')!r}"
+    )
