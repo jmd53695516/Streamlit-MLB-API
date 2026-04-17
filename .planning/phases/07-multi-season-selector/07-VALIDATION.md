@@ -38,22 +38,25 @@ created: 2026-04-16
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 7-01-01 | 01 | 1 | SEASON-07 | unit | `pytest tests/test_config.py -k season` | ❌ W0 | ⬜ pending |
-| 7-01-02 | 01 | 1 | SEASON-01 | unit | `pytest tests/test_app.py -k season` | ❌ W0 | ⬜ pending |
-| 7-01-03 | 01 | 1 | SEASON-02 | unit | `pytest tests/test_app.py -k cascade` | ❌ W0 | ⬜ pending |
-| 7-02-01 | 02 | 1 | SEASON-03 | unit | `pytest tests/test_mlb_api.py -k roster` | ❌ W0 | ⬜ pending |
-| 7-02-02 | 02 | 1 | SEASON-04 | unit | `pytest tests/test_mlb_api.py -k ttl` | ❌ W0 | ⬜ pending |
-| 7-02-03 | 02 | 1 | SEASON-05 | unit | `pytest tests/test_mlb_api.py -k max_entries` | ❌ W0 | ⬜ pending |
+| 7-01-01 | 01 | 1 | SEASON-01 | unit | `pytest tests/test_config_season.py -k season` | W0 (TDD task creates it) | pending |
+| 7-01-02 | 01 | 1 | SEASON-01 | unit | `pytest tests/controller/test_callbacks.py -k season` | Partial (file exists, test added in task) | pending |
+| 7-01-02 | 01 | 1 | SEASON-02 | unit | `pytest tests/controller/test_callbacks.py -k cascade` | Partial (file exists, test added in task) | pending |
+| 7-02-00 | 02 | 1 | SEASON-03 | integration | `python scripts/test_historical_roster.py` | W0 (Task 0 creates it) | pending |
+| 7-02-01 | 02 | 1 | SEASON-03 | unit | `pytest tests/services/test_team_hitting_stats.py -k roster` | Partial (file exists, test added in task) | pending |
+| 7-02-01 | 02 | 1 | SEASON-04 | unit | `pytest tests/services/test_mlb_api_season.py -k ttl` | W0 (TDD task creates it) | pending |
+| 7-02-01 | 02 | 1 | SEASON-05 | unit | `pytest tests/services/test_mlb_api_season.py -k max_entries` | W0 (TDD task creates it) | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_season_selector.py` — stubs for SEASON-01, SEASON-02
-- [ ] `tests/test_historical_roster.py` — stubs for SEASON-03
-- [ ] `tests/test_season_caching.py` — stubs for SEASON-04, SEASON-05
+- [ ] `tests/test_config_season.py` — covers SEASON-01: `AVAILABLE_SEASONS` length, current year at index 0, `CURRENT_SEASON` matches `AVAILABLE_SEASONS[0]` (created by 07-01 Task 1 TDD red phase)
+- [ ] `tests/services/test_mlb_api_season.py` — covers SEASON-04 and SEASON-05: TTL dispatcher routing, `max_entries` introspection (created by 07-02 Task 1 TDD red phase)
+- [ ] `tests/controller/test_callbacks.py` — extend with `test_on_season_change_nulls_all_three_children` (created by 07-01 Task 2)
+- [ ] `tests/services/test_team_hitting_stats.py` — extend with `test_historical_season_uses_full_season_roster_type` (created by 07-02 Task 1)
+- [ ] `scripts/test_historical_roster.py` — live API validation of `rosterType=fullSeason&season=2024` response shape (created by 07-02 Task 0; not a pytest test — requires network, used once for D-03 validation)
 
 *Existing test infrastructure (pytest, conftest.py, fixtures) covers framework needs.*
 
