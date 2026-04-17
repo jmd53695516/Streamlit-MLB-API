@@ -2,13 +2,13 @@
 
 ## Milestones
 
-- ✅ **v1.0 MVP** — Phases 1-6 (shipped 2026-04-16)
+- **v1.0 MVP** — Phases 1-6 (shipped 2026-04-16)
 - **v1.1 Multi-Season & Deploy** — Phases 7-8 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 MVP (Phases 1-6) — SHIPPED 2026-04-16</summary>
+<summary>v1.0 MVP (Phases 1-6) — SHIPPED 2026-04-16</summary>
 
 - [x] Phase 1: Foundation & API Layer (3/3 plans)
 - [x] Phase 2: Models & Geometry (3/3 plans)
@@ -53,7 +53,11 @@ Plans:
   2. The deployed app loads venue data immediately on first open (no cold-start venue fetch delay)
   3. `requirements.txt` installs cleanly on the Cloud environment without dev or test dependencies
   4. `.streamlit/config.toml` is committed so app appearance and settings are consistent across environments
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 08-01-PLAN.md — Config, deps, and git: narrow .gitignore, create config.toml, add set_page_config, clean requirements.txt, track venues_cache.json
+- [ ] 08-02-PLAN.md — Branch and deploy: create main branch, push to GitHub, deploy on Streamlit Community Cloud
+**UI hint**: no
 
 ## Progress
 
@@ -65,8 +69,8 @@ Plans:
 | 4. Controller & Selectors UI | v1.0 | 3/3 | Complete | 2026-04-15 |
 | 5. Spray Chart Visualization | v1.0 | 3/3 | Complete | 2026-04-16 |
 | 6. Summary, Rankings & Polish | v1.0 | 2/2 | Complete | 2026-04-16 |
-| 7. Multi-Season Selector | v1.1 | 0/2 | Planned | - |
-| 8. Cloud Deployment | v1.1 | 0/? | Not started | - |
+| 7. Multi-Season Selector | v1.1 | 2/2 | Complete | 2026-04-17 |
+| 8. Cloud Deployment | v1.1 | 0/2 | Planned | - |
 
 ---
-*Last updated: 2026-04-16 after Phase 7 planning*
+*Last updated: 2026-04-17 after Phase 8 planning*
