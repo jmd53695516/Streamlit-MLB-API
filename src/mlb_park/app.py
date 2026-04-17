@@ -12,6 +12,12 @@ selectbox is populated.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Ensure src/ is on sys.path for Streamlit Cloud (no editable install there)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pandas as pd
 import streamlit as st
 
