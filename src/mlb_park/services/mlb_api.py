@@ -113,7 +113,7 @@ def _raw_team_hitting_stats(team_id: int, season: int) -> list[dict]:
     assert isinstance(team_id, int) and isinstance(season, int), \
         "team_id and season must be int (SSRF guard, T-4-01)"
     from mlb_park.config import CURRENT_SEASON
-    roster_type = "active" if season >= CURRENT_SEASON else "fullSeason"
+    roster_type = "active" if season == CURRENT_SEASON else "fullSeason"
     hydrate = f"person(stats(type=statsSingleSeason,season={season},group=hitting))"
     resp = _get(
         f"{BASE_URL_V1}/teams/{team_id}/roster",
