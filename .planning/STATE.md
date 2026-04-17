@@ -9,7 +9,7 @@ progress:
   completed_phases: 2
   total_plans: 4
   completed_plans: 4
-  percent: 100
+  percent: 100 for now!
 ---
 
 # Project State — Streamlit MLB HR Park Factor Explorer
