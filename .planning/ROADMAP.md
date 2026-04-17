@@ -56,7 +56,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 08-01-PLAN.md — Config, deps, and git: narrow .gitignore, create config.toml, add set_page_config, clean requirements.txt, track venues_cache.json
-- [ ] 08-02-PLAN.md — Branch and deploy: create main branch, push to GitHub, deploy on Streamlit Community Cloud
+- [x] 08-02-PLAN.md — Branch and deploy: create main branch, push to GitHub, deploy on Streamlit Community Cloud
 **UI hint**: no
 
 ## Progress
