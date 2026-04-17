@@ -59,6 +59,8 @@ def test_empty_roster_returns_empty_list(monkeypatch):
 
 def test_raw_helper_builds_expected_url(monkeypatch, team_stats_147_payload):
     """Raw helper calls /teams/{id}/roster with rosterType=active + hydrate string."""
+    from mlb_park.config import CURRENT_SEASON
+
     captured: dict = {}
 
     def fake_get(url: str, params: dict | None = None) -> dict:
@@ -68,7 +70,7 @@ def test_raw_helper_builds_expected_url(monkeypatch, team_stats_147_payload):
 
     monkeypatch.setattr(mlb_api, "_get", fake_get)
 
-    mlb_api._raw_team_hitting_stats(147, 2026)
+    mlb_api._raw_team_hitting_stats(147, CURRENT_SEASON)
 
     assert "teams/147/roster" in captured["url"]
     params = captured["params"]
@@ -76,7 +78,7 @@ def test_raw_helper_builds_expected_url(monkeypatch, team_stats_147_payload):
     hydrate = params.get("hydrate", "")
     assert "person(stats(" in hydrate
     assert "type=statsSingleSeason" in hydrate
-    assert "season=2026" in hydrate
+    assert f"season={CURRENT_SEASON}" in hydrate
     assert "group=hitting" in hydrate
 
 
