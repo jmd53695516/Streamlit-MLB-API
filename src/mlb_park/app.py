@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 
 # Ensure src/ is on sys.path for Streamlit Cloud (no editable install there)
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+_src = str(Path(__file__).resolve().parent.parent)
+if _src not in sys.path:
+    sys.path.insert(0, _src)
 
 import pandas as pd
 import streamlit as st
