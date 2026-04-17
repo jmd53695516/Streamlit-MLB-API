@@ -56,6 +56,17 @@ def test_on_player_change_sets_home_venue(monkeypatch: pytest.MonkeyPatch) -> No
     assert fake_state["venue_id"] == 3313
 
 
+def test_on_season_change_nulls_all_three_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D-02: changing season nulls team_id, player_id, and venue_id."""
+    import mlb_park.app as app
+    fake_state = {"season": 2024, "team_id": 147, "player_id": 592450, "venue_id": 3313}
+    monkeypatch.setattr("mlb_park.app.st.session_state", fake_state)
+    app._on_season_change()
+    assert fake_state["team_id"] is None
+    assert fake_state["player_id"] is None
+    assert fake_state["venue_id"] is None
+
+
 def test_on_player_change_no_team_selected_is_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

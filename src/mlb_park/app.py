@@ -17,7 +17,7 @@ import streamlit as st
 
 from mlb_park import chart, controller
 from mlb_park.geometry.park import Park
-from mlb_park.pipeline import CURRENT_SEASON
+from mlb_park.config import AVAILABLE_SEASONS, CURRENT_SEASON
 from mlb_park.services.mlb_api import (
     get_teams,
     get_team_hitting_stats,
@@ -29,6 +29,13 @@ from mlb_park.services.mlb_api import (
 
 
 # --- Callbacks (D-17, D-20) ---
+def _on_season_change() -> None:
+    """D-02: season change resets ALL downstream selectors (full cascade)."""
+    st.session_state["team_id"] = None
+    st.session_state["player_id"] = None
+    st.session_state["venue_id"] = None
+
+
 def _on_team_change() -> None:
     """UX-04: team change nulls player_id and venue_id."""
     st.session_state["player_id"] = None
@@ -55,6 +62,19 @@ def _on_player_change() -> None:
 st.title("MLB HR Park Factor Explorer")
 
 
+# --- Season selectbox (D-01: before Team; D-07: dynamic range; D-08: default=current year) ---
+st.selectbox(
+    "Season",
+    options=AVAILABLE_SEASONS,
+    key="season",
+    index=0,
+    help="Select a season to explore.",
+    on_change=_on_season_change,
+)
+
+season = st.session_state.get("season", CURRENT_SEASON)
+
+
 # --- Team selectbox (always populated — single eager fetch, D-18) ---
 teams = controller.sorted_teams(get_teams())
 team_options = [t["id"] for t in teams]
@@ -76,7 +96,7 @@ st.selectbox(
 team_id = st.session_state.get("team_id")
 if team_id is not None:
     roster = controller.sorted_hitters(
-        get_team_hitting_stats(team_id, CURRENT_SEASON)
+        get_team_hitting_stats(team_id, season)
     )
     player_options = [e["person"]["id"] for e in roster]
     player_labels = {
@@ -96,7 +116,7 @@ st.selectbox(
     key="player_id",
     index=None,
     placeholder="Select a player…",
-    help="Non-pitchers on this team, sorted by current-season HR count.",
+    help="Non-pitchers on this team, sorted by season HR count.",
     format_func=lambda pid: player_labels.get(pid, str(pid)),
     on_change=_on_player_change,
     disabled=(team_id is None),
@@ -138,13 +158,13 @@ if team_id is None or player_id is None or venue_id is None:
 else:
     try:
         with st.spinner("Loading player data..."):
-            view = controller.build_view(team_id, player_id, venue_id)
+            view = controller.build_view(team_id, player_id, venue_id, season=season)
     except Exception as e:
         st.error(
             f"Could not load data. The MLB API may be temporarily unavailable. "
             f"({type(e).__name__})"
         )
-        if st.button("Retry"):
+        if st.button("Retry Request"):
             st.cache_data.clear()
             st.rerun()
         st.stop()  # Halt page execution after error -- don't render stale UI
@@ -177,7 +197,7 @@ else:
     if not view.events:
         st.info(f"{view.player_name} has no home runs in {view.season}.")
     elif not view.plottable_events:
-        st.info(f"{view.player_name} has no plottable HRs this season.")
+        st.info(f"{view.player_name} has no plottable HRs in {view.season}.")
     else:
         st.subheader("Spray Chart")
         st.plotly_chart(
