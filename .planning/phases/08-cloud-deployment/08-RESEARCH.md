@@ -406,7 +406,7 @@ git check-ignore -v .streamlit/config.toml
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `app.py` have a `st.set_page_config()` call?**
    - What we know: `app.py` line 62 has `st.title(...)`. The read was truncated at line 70.
