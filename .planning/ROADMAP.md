@@ -55,7 +55,7 @@ Plans:
   4. `.streamlit/config.toml` is committed so app appearance and settings are consistent across environments
 **Plans**: 2 plans
 Plans:
-- [ ] 08-01-PLAN.md — Config, deps, and git: narrow .gitignore, create config.toml, add set_page_config, clean requirements.txt, track venues_cache.json
+- [x] 08-01-PLAN.md — Config, deps, and git: narrow .gitignore, create config.toml, add set_page_config, clean requirements.txt, track venues_cache.json
 - [ ] 08-02-PLAN.md — Branch and deploy: create main branch, push to GitHub, deploy on Streamlit Community Cloud
 **UI hint**: no
 

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=2026\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); recs=d['records']; print\\('divisions:', len\\(recs\\)\\); r0=recs[0]; print\\('div keys:', list\\(r0.keys\\(\\)\\)\\); tr=r0['teamRecords'][0]; print\\('team record keys:', list\\(tr.keys\\(\\)\\)[:25]\\); import json as j; print\\(j.dumps\\({k:tr[k] for k in ['team','divisionRank','wins','losses','gamesBack','streak','runsScored','runsAllowed'] if k in tr}, indent=2\\)\\)\")"
+    ]
+  }
+}
