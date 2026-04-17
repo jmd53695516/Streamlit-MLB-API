@@ -5,11 +5,8 @@ __pycache__/
 .venv/
 venv/
 
-# Streamlit
-.streamlit/
-
-# App runtime state
-data/
+# Streamlit — track config.toml, ignore secrets only (D-13)
+.streamlit/secrets.toml
 
 # OS
 .DS_Store

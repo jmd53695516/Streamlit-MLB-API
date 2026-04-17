@@ -59,6 +59,7 @@ def _on_player_change() -> None:
 
 
 # --- Page chrome (UI-SPEC §Copywriting Contract) ---
+st.set_page_config(page_title="MLB HR Park Explorer", layout="wide")
 st.title("MLB HR Park Factor Explorer")
 
 
