@@ -20,15 +20,15 @@ from mlb_park.controller import ViewModel
 from mlb_park.geometry.calibration import CALIB_OX, CALIB_OY, CALIB_S
 from mlb_park.geometry.park import Park
 
-# --- Color palette (D-08) ---
-CLEARS = "#2ca02c"
-DOESNT_CLEAR = "#d62728"
-FAIR_TERRITORY = "#e8f5e9"
-INFIELD_DIRT = "#c1a17a"
-MOUND_DIRT = "#c1a17a"
-BASES_FG = "#ffffff"
-HOME_PLATE_FG = "#ffffff"
-BORDER = "#ffffff"
+# --- Color palette (D-08) — "Press Box at Night" dark theme ---
+CLEARS = "#00d68f"
+DOESNT_CLEAR = "#ff6b6b"
+FAIR_TERRITORY = "#143d26"
+INFIELD_DIRT = "#3d2e1a"
+MOUND_DIRT = "#3d2e1a"
+BASES_FG = "#e8e8e8"
+HOME_PLATE_FG = "#e8e8e8"
+BORDER = "#0a0e17"
 
 # --- Infield dimensions (D-02 -- MLB regulation, same every park) ---
 MOUND_DISTANCE_FT = 60.5
@@ -91,7 +91,7 @@ def _fair_territory_trace(park: Park) -> go.Scatter:
         x=x_closed, y=y_closed,
         mode="lines", fill="toself",
         fillcolor=FAIR_TERRITORY,
-        line=dict(color=FAIR_TERRITORY, width=1),
+        line=dict(color="#1f6b3f", width=2),
         hoverinfo="skip", showlegend=False, name="fair",
     )
 
@@ -127,7 +127,7 @@ def _baselines_trace() -> go.Scatter:
     ys = [_HOME_PLATE[1], _FIRST_BASE[1], _SECOND_BASE[1], _THIRD_BASE[1], _HOME_PLATE[1]]
     return go.Scatter(
         x=xs, y=ys, mode="lines",
-        line=dict(color=BASES_FG, width=1.5),
+        line=dict(color="rgba(232, 232, 232, 0.5)", width=1.5),
         hoverinfo="skip", showlegend=False, name="baselines",
     )
 
@@ -162,7 +162,7 @@ def _bases_trace() -> go.Scatter:
         x=xs, y=ys, mode="markers",
         marker=dict(
             symbol=symbols, size=10,
-            color=BASES_FG, line=dict(color="#888888", width=1),
+            color=BASES_FG, line=dict(color="#4a5568", width=1),
         ),
         hoverinfo="skip", showlegend=False, name="bases",
     )
@@ -216,7 +216,7 @@ def _hr_scatter_trace(view: ViewModel) -> go.Scatter:
     return go.Scatter(
         x=xs, y=ys, mode="markers",
         marker=dict(
-            size=12, opacity=0.7, symbol="circle",
+            size=13, opacity=0.85, symbol="circle",
             color=colors, line=dict(color=BORDER, width=1),
         ),
         customdata=customdata,
@@ -242,11 +242,18 @@ def _apply_layout(fig: go.Figure) -> None:
             scaleratio=1,
             constrain="domain",
         ),
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
+        plot_bgcolor="#0a0e17",
+        paper_bgcolor="#0a0e17",
         margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
         hovermode="closest",
+        hoverlabel=dict(
+            bgcolor="#1a2236",
+            font_size=13,
+            font_family="IBM Plex Mono, monospace",
+            font_color="#e8e8e8",
+            bordercolor="#f0a500",
+        ),
     )
 
 
