@@ -40,8 +40,8 @@
   5. The game-feed cache is bounded and does not exhaust Streamlit Community Cloud memory on a cold load of a high-HR player
 **Plans**: 2 plans
 Plans:
-- [ ] 07-01-PLAN.md — Config + UI: dynamic season constants, selectbox, cascade callback, season threading
-- [ ] 07-02-PLAN.md — API caching: conditional rosterType, two-function TTL split, max_entries cap
+- [x] 07-01-PLAN.md — Config + UI: dynamic season constants, selectbox, cascade callback, season threading
+- [x] 07-02-PLAN.md — API caching: conditional rosterType, two-function TTL split, max_entries cap
 **UI hint**: yes
 
 ### Phase 8: Cloud Deployment
